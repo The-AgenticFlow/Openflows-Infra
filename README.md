@@ -1,39 +1,28 @@
 # Openflows-Infra
 
-Infra repo for the OpenFlows deployment. Owns the Helm chart and cluster
-config that deploy the OpenFlows control plane and controller on Kubernetes,
-the same way `talos-k8s` owns cluster config in the skyengpro group.
+Infrastructure-as-code for the [OpenFlows](https://github.com/The-AgenticFlow) deployment: the Helm chart and cluster configuration that run the OpenFlows control plane and controller on Kubernetes.
 
-OpenFlows is an autonomous AI development team on Coder. It turns GitHub
-issues into reviewed, production-ready pull requests. The product source lives
-in the `openflows` repo; this repo owns how it runs on the cluster.
+OpenFlows is an autonomous AI development team on [Coder](https://coder.com): it turns GitHub issues into reviewed, production-ready pull requests. The product source lives in the `openflows` repo; this repo owns how it runs on the cluster.
 
-## Repo layout
+## Layout
 
 | Path | Purpose |
 |---|---|
-| `charts/openflows/` | Helm chart for the OpenFlows control plane + controller |
+| `charts/openflows/` | Helm chart for the OpenFlows control plane (Redis, PostgreSQL, Coder) and controller |
 | `docs/` | Architecture and runbook docs for the stack |
 
-## Docs
+## Documentation
 
-- [docs/ARCHITECTURE-openflows.md](docs/ARCHITECTURE-openflows.md): what the
-  stack is, its components, and how data flows through it.
-- [docs/RUNBOOK-openflows.md](docs/RUNBOOK-openflows.md): how to operate the
-  stack day to day.
-- [charts/openflows/README.md](charts/openflows/README.md): how to install and
-  configure the chart.
+| Doc | Contents |
+|---|---|
+| [Architecture](docs/ARCHITECTURE-openflows.md) | What the stack is, its components, and how data flows through it |
+| [Runbook](docs/RUNBOOK-openflows.md) | Day-to-day operations |
+| [Chart README](charts/openflows/README.md) | Install, values, and configuration reference |
 
-## Getting started
+## Contributing
 
-The chart deploys the control plane (Redis, PostgreSQL, Coder, and the
-OpenFlows controller). Install it, then run the OpenFlows operator flow to
-push workspace templates and add tenants:
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see [SECURITY.md](SECURITY.md). Please do not open public issues for vulnerabilities.
 
-```bash
-helm install openflows charts/openflows -f <values-file>
-openflows bootstrap
-openflows tenant add <owner/repo> --name <team> --fleet 3
-```
+## License
 
-See the chart README for full install and configuration details.
+[Apache License 2.0](LICENSE)

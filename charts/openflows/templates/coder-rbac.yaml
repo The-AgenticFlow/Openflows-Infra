@@ -1,0 +1,47 @@
+{{- if and .Values.coder.rbac.create (eq .Values.coder.provisionerType "kubernetes") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+rules:
+  # Coder kubernetes provisioner: create/manage workspace pods and their deps.
+  - apiGroups: [""]
+    resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims", "serviceaccounts", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "openflows.fullname" . }}-coder
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "openflows.fullname" . }}-coder
+    namespace: {{ .Release.Namespace }}
+{{- end }}

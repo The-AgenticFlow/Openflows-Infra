@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+data:
+  CODER_ACCESS_URL: {{ .Values.coder.accessUrl | quote }}
+  CODER_URL: {{ .Values.coder.accessUrl | quote }}
+  CODER_HTTP_ADDRESS: {{ .Values.coder.httpAddress | quote }}
+  CODER_PROVISIONER_DAEMONS: {{ .Values.coder.provisionerDaemons | quote }}
+  CODER_PROVISIONER_DAEMON_TYPE: {{ .Values.coder.provisionerType | quote }}
+  TF_PLUGIN_CACHE_DIR: {{ .Values.coder.tfPluginCacheDir | quote }}
+  REDIS_URL: "redis://{{ include "openflows.fullname" . }}-redis:6379"
+  CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS: {{ .Values.coder.allowSignups | quote }}
+  CODER_EXTERNAL_AUTH_0_ID: {{ .Values.coder.externalAuth.id | quote }}
+  CODER_EXTERNAL_AUTH_0_TYPE: {{ .Values.coder.externalAuth.type | quote }}
+  CODER_EXTERNAL_AUTH_0_CLIENT_ID: {{ .Values.coder.externalAuth.clientId | quote }}
+  CODER_EXTERNAL_AUTH_0_SCOPES: {{ .Values.coder.externalAuth.scopes | quote }}
+  CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL: {{ .Values.coder.externalAuth.appInstallUrl | quote }}
+  CODER_EXPERIMENTS: {{ .Values.coder.experiments | quote }}
+  # The hook consumer runs in the nexus workspace's openflows process, not in a
+  # separate Deployment. hookHost is the Service name the nexus template creates.
+  CODER_CHAT_HOOK_URL: "http://{{ .Values.controller.hookHost | default "openflows-nexus" }}:{{ .Values.controller.service.port }}/experimental/hooks/chat"
+  CODER_CHAT_HOOK_ALLOW_INSECURE: {{ .Values.coder.chatHookAllowInsecure | quote }}

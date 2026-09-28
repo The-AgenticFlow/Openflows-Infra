@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+spec:
+  replicas: {{ .Values.coder.replicas }}
+  selector:
+    matchLabels:
+      {{- include "openflows.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: coder
+  template:
+    metadata:
+      labels:
+        {{- include "openflows.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: coder
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "openflows.fullname" . }}-coder
+      containers:
+        - name: coder
+          image: "{{ .Values.coder.image }}:{{ .Values.coder.tag }}"
+          ports:
+            - name: http
+              containerPort: 7080
+          envFrom:
+            - configMapRef:
+                name: {{ include "openflows.fullname" . }}-coder
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openflows.fullname" . }}-postgres
+                  key: password
+            - name: CODER_PG_CONNECTION_URL
+              value: "postgres://{{ .Values.postgres.user }}:$(POSTGRES_PASSWORD)@{{ include "openflows.fullname" . }}-postgres:5432/{{ .Values.postgres.database }}?sslmode=disable"
+            - name: CODER_EXTERNAL_AUTH_0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openflows.fullname" . }}
+                  key: githubClientSecret
+            - name: CODER_CHAT_HOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openflows.fullname" . }}-chat-hook-secret
+                  key: secret
+          {{- with .Values.coder.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tf-plugin-cache
+              mountPath: {{ .Values.coder.tfPluginCacheDir }}
+      volumes:
+        - name: tf-plugin-cache
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

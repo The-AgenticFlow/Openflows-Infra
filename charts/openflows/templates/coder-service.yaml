@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+spec:
+  type: {{ .Values.coder.service.type }}
+  selector:
+    {{- include "openflows.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+  ports:
+    - name: http
+      port: {{ .Values.coder.service.port }}
+      targetPort: http

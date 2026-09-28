@@ -1,0 +1,43 @@
+{{- if .Values.serviceAliases.enabled }}
+# Short, stable DNS names.
+#
+# The openflows binaries and the agent templates hardcode `coder:7080` and
+# `redis:6379` so a workspace only ever has to know its own role. Those names
+# are not cluster specific, so they must not be derived from the release name:
+# renaming the release would otherwise silently break every running workspace.
+apiVersion: v1
+kind: Service
+metadata:
+  name: coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+    openflows.io/alias: "true"
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "openflows.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+  ports:
+    - name: http
+      port: {{ .Values.coder.service.port }}
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+    openflows.io/alias: "true"
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "openflows.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+{{- end }}

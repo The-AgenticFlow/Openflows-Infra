@@ -1,0 +1,163 @@
+# OpenFlows Helm chart values.
+# Mirrors the reference docker-compose deployment, adapted for Kubernetes.
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Redis (OpenFlows SharedStore) ────────────────────────────────────────────
+redis:
+  enabled: true
+  image: redis:7-alpine
+  replicas: 1
+  # appendonly for durability (matches compose `--appendonly yes`)
+  appendonly: true
+  resources: {}
+  # storageClassName: ""
+  persistence:
+    enabled: true
+    size: 8Gi
+
+# ── PostgreSQL (Coder database) ──────────────────────────────────────────────
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  replicas: 1
+  database: coder
+  user: coder
+  # password: ""            # set via existingSecret or this value
+  existingSecret: ""        # name of a Secret holding `password`
+  resources: {}
+  persistence:
+    enabled: true
+    size: 8Gi
+
+# ── Coder server (control plane) ─────────────────────────────────────────────
+coder:
+  image: ghcr.io/coder/coder
+  tag: v2.37.1
+  replicas: 1
+  # Public URL agents/operators reach Coder at (CODER_ACCESS_URL / CODER_URL).
+  accessUrl: https://coder.example.com
+  # In-cluster HTTP bind address (CODER_HTTP_ADDRESS).
+  httpAddress: "0.0.0.0:7080"
+  # Provisioner: kubernetes (native) or docker (needs a docker socket).
+  provisionerType: kubernetes
+  # CODER_PROVISIONER_DAEMONS: number of in-process provisioner daemons.
+  provisionerDaemons: 1
+  # GitHub signups (CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS).
+  allowSignups: true
+  # Terraform provider cache dir (persisted on a volume).
+  tfPluginCacheDir: /root/.terraform.d/plugin-cache
+  # GitHub external auth (GitHub App). Coder fails to start if clientId/secret empty.
+  externalAuth:
+    id: primary-github
+    type: github
+    clientId: ""
+    scopes: repo
+    appInstallUrl: ""
+  # Agent lifecycle hooks (experimental).
+  experiments: agent-lifecycle-hooks
+  chatHookAllowInsecure: true
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 7080
+  ingress:
+    enabled: true
+    className: ""
+    host: coder.example.com
+    tls:
+      enabled: true
+      secretName: ""
+  # RBAC for the kubernetes provisioner (creates workspace pods).
+  rbac:
+    create: true
+
+# ── OpenFlows controller (standalone Deployment) ─────────────────────────────
+# Disabled by default: the canonical controller runs inside the nexus workspace's
+# `openflows run` process, and Coder's chat hook is posted to that same process
+# (see controller.hookHost). Enable only for a split deployment.
+controller:
+  enabled: false
+  image: ghcr.io/the-agenticflow/openflows
+  tag: latest
+  replicas: 1
+  # OPENFLOWS_TENANT namespace for Redis keys.
+  tenant: default
+  # OPENFLOWS_HOOK_ADDR (hook consumer bind).
+  hookAddr: "0.0.0.0:3001"
+  # OPENFLOWS_HOOK_HOST / Coder's hook URL host: the in-cluster Service that
+  # fronts the hook consumer. Empty means the nexus workspace Service, which is
+  # where the canonical controller runs.
+  hookHost: ""
+  # A2A relay bind (OPENFLOWS_A2A_RELAY_ADDR / A2A_RELAY_ADDR).
+  a2aRelayAddr: "127.0.0.1:3000"
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 3001
+
+# ── Workspace image + storage (consumed by `openflows bootstrap`) ─────────────
+# `openflows bootstrap` sets the matching TF_VAR_* env vars itself, so these are
+# documentation of the defaults it applies, not values it reads back. To
+# override, export the OPENFLOWS_* variables in the environment bootstrap runs
+# in (a Deployment env block, or your shell for a manual run):
+#
+#   workspace.image                  -> TF_VAR_workspace_image
+#   workspace.imagePullPolicy        -> TF_VAR_image_pull_policy
+#   workspace.storageClass           -> TF_VAR_workspace_storage_class   (OPENFLOWS_STORAGE_CLASS)
+#   workspace.artifactsStorageClass  -> TF_VAR_artifacts_storage_class   (OPENFLOWS_ARTIFACTS_STORAGE_CLASS)
+#   workspace.artifactsNode          -> TF_VAR_artifacts_node            (OPENFLOWS_ARTIFACTS_NODE)
+#
+# bootstrap never invents a node pin or StorageClass: those are site facts, and
+# guessing one would make the binary silently cluster-specific.
+workspace:
+  # Image providing the Coder base plus the openflows binaries.
+  image: ghcr.io/onelrian/openflows-workspace:1.3.3
+  # IfNotPresent once the image is preloaded onto the nodes; Always when the
+  # registry is the only source of the image.
+  imagePullPolicy: IfNotPresent
+  # Per-workspace and shared artifacts StorageClass. Empty means the cluster
+  # default; clusters without a default class (e.g. Talos + local-path) must set
+  # these explicitly or the PVCs stay Pending.
+  storageClass: ""
+  artifactsStorageClass: ""
+  artifactsSize: 10Gi
+  workspaceSize: 10Gi
+  # Pin every workspace pod to one node. Required while the shared artifacts
+  # volume is a node-local RWO class, because nexus and the workers must land on
+  # the same node to mount it. Leave empty when a real RWX class is used.
+  artifactsNode: ""
+
+# ── Stable short Service names ───────────────────────────────────────────────
+# openflows hardcodes coder:7080 and redis:6379, so these aliases are
+# deliberately not release-prefixed.
+serviceAliases:
+  enabled: true
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+# Populate via an existing Secret (recommended) or inline values.
+# Inline values are rendered into a Secret; prefer existingSecret in production.
+existingSecret: ""   # name of a Secret holding the keys below (all optional)
+secrets:
+  # Coder
+  coderSessionToken: ""
+  coderAdminPassword: ""
+  coderChatHookSecret: ""   # 32+ random bytes
+  # GitHub App
+  githubClientId: ""
+  githubClientSecret: ""
+  # Notifications (optional)
+  slackWebhookUrl: ""
+  discordWebhookUrl: ""
+  whatsappAccountSid: ""
+  whatsappApiKey: ""
+  whatsappAuthToken: ""
+  whatsappFromPhone: ""
+  whatsappToPhone: ""
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+nodeSelector: {}
+tolerations: []
+affinity: {}

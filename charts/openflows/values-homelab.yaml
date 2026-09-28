@@ -1,0 +1,46 @@
+# Homelab deployment values: no domain, access via LoadBalancer IPs.
+# Ingress host must be a DNS name (not an IP), so Coder is exposed as a
+# LoadBalancer service and MetalLB assigns it an IP directly.
+
+redis:
+  persistence:
+    storageClassName: local-path
+
+postgres:
+  persistence:
+    storageClassName: local-path
+  # Pinned so the password is stable across reinstalls (avoids the
+  # regenerate-on-upgrade mismatch with the persisted data dir).
+  password: homelab-coder-pg
+
+coder:
+  accessUrl: http://192.168.1.201:7080
+  service:
+    type: LoadBalancer
+  ingress:
+    enabled: false
+  externalAuth:
+    clientId: "Iv23liMefXkQScetBMqI"   # GitHub App client ID (secret via --set)
+  chatHookAllowInsecure: true
+
+controller:
+  tenant: default
+
+# This cluster has only the node-local `local-path` class and no default class,
+# so both PVC classes must be named explicitly or the claims stay Pending.
+#
+# local-path is ReadWriteOnce, and a nexus workspace plus its fleet workers all
+# mount the shared artifacts claim. RWO binds to one node, so the artifacts pod
+# and every worker are pinned to the same node to make that mount legal. On a
+# cluster with a real RWX class, clear artifactsNode instead.
+workspace:
+  storageClass: local-path
+  artifactsStorageClass: local-path
+  artifactsNode: homelab-static-x27rq-9mqcl
+
+# Secrets are supplied via --set or existingSecret. Do not commit real values.
+secrets:
+  coderSessionToken: ""
+  coderChatHookSecret: ""
+  githubClientId: "Iv23liMefXkQScetBMqI"
+  githubClientSecret: ""   # set via --set secrets.githubClientSecret=<secret>

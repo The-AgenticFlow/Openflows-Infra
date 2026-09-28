@@ -1,0 +1,36 @@
+{{- if .Values.coder.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "openflows.fullname" . }}-coder
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coder
+  {{- with .Values.coder.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.coder.ingress.className }}
+  ingressClassName: {{ .Values.coder.ingress.className }}
+  {{- end }}
+  {{- if .Values.coder.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.coder.ingress.host }}
+      {{- if .Values.coder.ingress.tls.secretName }}
+      secretName: {{ .Values.coder.ingress.tls.secretName }}
+      {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.coder.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openflows.fullname" . }}-coder
+                port:
+                  name: http
+{{- end }}

@@ -14,8 +14,10 @@ Helm chart for the OpenFlows control plane and controller on Kubernetes.
 
 ## Install
 
+From the published OCI release:
+
 ```bash
-helm install openflows charts/openflows \
+helm install openflows oci://ghcr.io/the-agenticflow/charts/openflows --version 0.1.1 \
   --set coder.accessUrl=https://coder.example.com \
   --set coder.ingress.host=coder.example.com \
   --set coder.externalAuth.clientId=<gh-app-id> \
@@ -23,6 +25,9 @@ helm install openflows charts/openflows \
   --set secrets.coderSessionToken=<token> \
   --set secrets.coderChatHookSecret=$(openssl rand -hex 32)
 ```
+
+Or from a local checkout, replace the `oci://...` reference with
+`charts/openflows`.
 
 Secrets can instead be supplied via `--set existingSecret=<name>` (a Secret
 with the keys listed under `secrets` in `values.yaml`).
@@ -48,6 +53,20 @@ All configuration lives in `values.yaml`. Key sections:
 | `coder` | Coder image/tag, access URL, ingress, GitHub external auth, provisioner |
 | `controller` | Controller image/tag, tenant, hook address |
 | `secrets` | Inline secret values (or use `existingSecret`) |
+
+## Releasing
+
+Bump `version` (and `appVersion` if the workspace image changed) in `Chart.yaml`,
+merge to `main`, then push a matching tag:
+
+```bash
+git tag chart-v0.1.1
+git push origin chart-v0.1.1
+```
+
+The `release-chart` workflow packages the chart, pushes it to
+`oci://ghcr.io/the-agenticflow/charts/openflows`, and publishes a GitHub
+Release for the tag with the packaged `.tgz` attached.
 
 ## Known gaps
 

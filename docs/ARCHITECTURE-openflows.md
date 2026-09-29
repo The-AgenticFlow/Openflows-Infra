@@ -11,6 +11,7 @@
 | Controller hook port | 3001 |
 | Provisioner | kubernetes |
 | Secret source | `existingSecret` or inline values |
+| Deploy mechanism | ArgoCD (`argocd/application.yaml`), tracks `charts/openflows` on `main` |
 
 ## System Overview
 
@@ -92,6 +93,12 @@ provision workspaces. Worker workspaces talk to Redis only through the
 - **Control plane first.** The chart covers Redis, PostgreSQL, Coder, and the
   controller. Workspace templates are pushed by `openflows bootstrap`, not
   part of the chart yet.
+- **GitOps via ArgoCD, no external secret backend.** `argocd/application.yaml`
+  tracks `charts/openflows` on `main` and syncs automatically on merge.
+  Secrets stay as in-cluster Secret objects referenced via `existingSecret`,
+  this cluster has no External Secrets Operator or cloud secret manager.
+  ArgoCD itself is installed once, out-of-band, it can't sync itself into
+  existence.
 
 ## Networking
 
@@ -123,3 +130,4 @@ manifest or Helm value.
 | `charts/openflows/templates/coder-rbac.yaml` | Kubernetes provisioner RBAC |
 | `charts/openflows/templates/controller-deployment.yaml` | Controller (only rendered when `controller.enabled=true`) |
 | `charts/openflows/templates/secrets.yaml` | Secret rendering |
+| `argocd/application.yaml` | ArgoCD Application, GitOps sync from `main` |

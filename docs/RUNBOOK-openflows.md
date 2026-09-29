@@ -1,17 +1,35 @@
 # OpenFlows Runbook
 
+## Access
+
+Coder is reachable at `coder.openflows.home` through the cluster's shared
+`ingress-nginx` controller (`192.168.1.200`), not a dedicated LoadBalancer IP.
+Add this to `/etc/hosts` on any machine that needs to reach it:
+
+```
+192.168.1.200  coder.openflows.home
+```
+
 ## Common Operations
 
-### Install the chart
+### Deploy a change
+
+Merge to `main`. ArgoCD (`argocd/application.yaml`) tracks `charts/openflows`
+on `main` and syncs automatically, no manual `helm upgrade`. Check sync
+status:
+
+```bash
+kubectl get application openflows -n argocd
+```
+
+### Install the chart (bootstrap only)
+
+Only for standing up a new cluster before ArgoCD exists there, or for a
+throwaway local test. Once ArgoCD is managing the release, changes go
+through `main`, not this command.
 
 ```bash
 helm install openflows charts/openflows -f <values-file>
-```
-
-### Upgrade the chart
-
-```bash
-helm upgrade openflows charts/openflows -f <values-file>
 ```
 
 ### Render the chart without applying
@@ -21,6 +39,10 @@ helm template openflows charts/openflows -f <values-file>
 ```
 
 ### Scale the controller
+
+Only applies when `controller.enabled=true` (standalone Deployment). The
+default in-workspace controller is a single process in the nexus workspace
+pod and isn't horizontally scaled.
 
 ```bash
 kubectl scale deployment openflows-controller --replicas=2 -n openflows

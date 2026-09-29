@@ -2,12 +2,15 @@
 
 ## Access
 
-Coder is reachable at `coder.openflows.home` through the cluster's shared
-`ingress-nginx` controller (`192.168.1.200`), not a dedicated LoadBalancer IP.
-Add this to `/etc/hosts` on any machine that needs to reach it:
+OpenFlows (the Coder UI, its only web interface) is reachable at
+`openflows.int` through the cluster's shared `ingress-nginx` controller
+(`192.168.1.200`), not a dedicated LoadBalancer IP. `.int` is used instead of
+a real domain because this is enterprise-internal only, resolved purely via
+`/etc/hosts`, no public DNS. Add this to `/etc/hosts` on any machine that
+needs to reach it:
 
 ```
-192.168.1.200  coder.openflows.home
+192.168.1.200  openflows.int
 ```
 
 ## Common Operations

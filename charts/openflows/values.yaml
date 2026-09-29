@@ -70,6 +70,7 @@ coder:
     enabled: true
     className: ""
     host: coder.example.com
+    annotations: {}
     tls:
       enabled: true
       secretName: ""

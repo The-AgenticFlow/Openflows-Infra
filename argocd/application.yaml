@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openflows
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/The-AgenticFlow/Openflows-Infra
+    targetRevision: main
+    path: charts/openflows
+    helm:
+      values: |
+        coder:
+          accessUrl: http://192.168.1.201:7080
+          chatHookAllowInsecure: true
+          externalAuth:
+            clientId: Iv23liMefXkQScetBMqI
+          ingress:
+            enabled: false
+          service:
+            type: LoadBalancer
+        controller:
+          tenant: default
+        existingSecret: openflows
+        postgres:
+          existingSecret: openflows-postgres
+          persistence:
+            storageClassName: local-path
+        redis:
+          persistence:
+            storageClassName: local-path
+        workspace:
+          artifactsNode: homelab-static-x27rq-9mqcl
+          artifactsStorageClass: local-path
+          storageClass: local-path
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

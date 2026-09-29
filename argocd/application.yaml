@@ -12,14 +12,16 @@ spec:
     helm:
       values: |
         coder:
-          accessUrl: http://192.168.1.201:7080
+          accessUrl: http://coder.openflows.home
           chatHookAllowInsecure: true
           externalAuth:
             clientId: Iv23liMefXkQScetBMqI
           ingress:
-            enabled: false
+            enabled: true
+            className: nginx
+            host: coder.openflows.home
           service:
-            type: LoadBalancer
+            type: ClusterIP
         controller:
           tenant: default
         existingSecret: openflows

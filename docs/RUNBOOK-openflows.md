@@ -1,5 +1,15 @@
 # OpenFlows Runbook
 
+## Access
+
+Coder is reachable at `coder.openflows.home` through the cluster's shared
+`ingress-nginx` controller (`192.168.1.200`), not a dedicated LoadBalancer IP.
+Add this to `/etc/hosts` on any machine that needs to reach it:
+
+```
+192.168.1.200  coder.openflows.home
+```
+
 ## Common Operations
 
 ### Deploy a change

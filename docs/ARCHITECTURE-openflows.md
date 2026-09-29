@@ -7,7 +7,7 @@
 | Namespace | `openflows` (default) |
 | Chart | `charts/openflows` |
 | Workload shape | 2 StatefulSets (redis, postgres), 1 Deployment (coder); controller runs inside the nexus workspace by default |
-| Coder endpoint | `https://coder.example.com` (ingress) |
+| Coder endpoint | `http://openflows.int` (ingress, plain HTTP, see [ADR-0003](ADR-0003-plain-http-internal-ingress.md)) |
 | Controller hook port | 3001 |
 | Provisioner | kubernetes |
 | Secret source | `existingSecret` or inline values |
@@ -80,6 +80,27 @@ It is the only component that calls the Coder API to create chats and
 provision workspaces. Worker workspaces talk to Redis only through the
 `openflows worker` harness.
 
+### Deploying a change
+
+```mermaid
+sequenceDiagram
+  participant Dev as Developer
+  participant GH as GitHub (main)
+  participant Argo as ArgoCD
+  participant K8s as Cluster
+  Dev->>GH: merge PR
+  loop every ~120s
+    Argo->>GH: poll for new commits
+  end
+  Argo->>K8s: apply rendered chart (prune + selfHeal)
+  K8s->>K8s: ConfigMap-only change? checksum<br/>annotation changes, pod rolls automatically
+  K8s-->>Argo: report health
+```
+
+No manual `helm upgrade` or `kubectl apply` in this path. A direct
+`kubectl edit` against a live resource gets reverted on the next
+reconciliation, `selfHeal` treats it as drift from git.
+
 ## Key Decisions
 
 - **In-workspace controller by default.** The controller runs as the
@@ -102,7 +123,8 @@ provision workspaces. Worker workspaces talk to Redis only through the
 
 ## Networking
 
-- Coder: ingress on 443, HTTP bind on 7080.
+- Coder: ingress on 80 (plain HTTP, `ssl-redirect` disabled, no TLS cert for
+  the internal `.int` hostname), Service HTTP bind on 7080.
 - Controller: hook consumer on 3001, A2A relay on 3000 (localhost only).
 - Redis: 6379, cluster-internal.
 - PostgreSQL: 5432, cluster-internal.
@@ -118,8 +140,26 @@ manifest or Helm value.
 
 - Workspace templates are not part of the chart. They must be pushed by
   `openflows bootstrap` after install.
-- The Postgres password regenerates on `helm upgrade` unless pinned.
+- The Postgres password regenerates on install/upgrade unless pinned via
+  `postgres.password` or `postgres.existingSecret` (the live deployment uses
+  `existingSecret`, not affected).
 - The Coder Chats API is experimental; the chart pins a verified Coder version.
+- Secret changes (`existingSecret` contents, `postgres.existingSecret`) do not
+  auto-restart pods, only ConfigMap changes do (see `checksum/config`
+  annotation on the Coder Deployment). A secret rotation still needs a manual
+  `kubectl rollout restart`.
+- **Changing `coder.accessUrl` breaks reconnection for already-provisioned
+  workspaces.** Coder's Kubernetes provisioner bakes the agent download URL
+  (`{access_url}/bin/coder-{os}-{arch}`) into each workspace's startup
+  script at the time Coder last built it via Terraform, it does not
+  dynamically read the current `CODER_ACCESS_URL`. If a workspace's pod
+  sandbox gets recreated (node restart, eviction, network interruption)
+  after `accessUrl` changed, its startup script still points at the old
+  URL and gets permanently stuck retrying the agent download. The only
+  fixes are rebuilding the workspace through Coder (picks up the current
+  `accessUrl`, disruptive to any in-progress agent work) or keeping a
+  compatibility endpoint alive at the old URL until every live workspace
+  has naturally been rebuilt at least once.
 
 ## Key File Locations
 
@@ -131,3 +171,6 @@ manifest or Helm value.
 | `charts/openflows/templates/controller-deployment.yaml` | Controller (only rendered when `controller.enabled=true`) |
 | `charts/openflows/templates/secrets.yaml` | Secret rendering |
 | `argocd/application.yaml` | ArgoCD Application, GitOps sync from `main` |
+| `docs/ADR-0001-gitops-via-argocd.md` | Why GitOps/ArgoCD over a self-hosted-runner push pipeline |
+| `docs/ADR-0002-in-cluster-secrets.md` | Why secrets stay in-cluster, no ESO/cloud backend |
+| `docs/ADR-0003-plain-http-internal-ingress.md` | Why plain HTTP and `.int`, not TLS or `.dev`/`.home` |

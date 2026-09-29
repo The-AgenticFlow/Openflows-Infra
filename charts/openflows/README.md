@@ -10,7 +10,11 @@ Helm chart for the OpenFlows control plane and controller on Kubernetes.
 | PostgreSQL | StatefulSet + Service | Coder database |
 | Coder server | Deployment + Service + Ingress | Control plane, kubernetes provisioner |
 | Coder RBAC | ServiceAccount + ClusterRole(Binding) | Lets the kubernetes provisioner create workspace pods |
-| OpenFlows controller | Deployment + Service | Standalone controller + hook consumer (:3001) |
+
+By default the controller is not a chart-managed workload: it's the
+`openflows run` process started inside the nexus workspace pod by the nexus
+template's startup script. Set `controller.enabled=true` to lift it into a
+standalone Deployment + Service instead.
 
 ## Install
 
@@ -76,7 +80,6 @@ Release for the tag with the packaged `.tgz` attached.
   themselves are not part of this chart yet.
 - **Postgres password**: generated once at install. Pin `postgres.password` or
   set `postgres.existingSecret` for a stable value across `helm upgrade`.
-- **Controller placement**: currently a standalone Deployment (lifted out of the
-  nexus workspace). To use the original in-workspace model instead, disable the
-  controller Deployment (`controller.enabled=false`) and let Coder provision it
-  as a workspace.
+- **Controller placement**: default is the in-workspace model (`openflows run`
+  inside the nexus workspace pod). Set `controller.enabled=true` to lift it
+  into a standalone Deployment instead.

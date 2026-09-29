@@ -42,6 +42,30 @@ kubectl scale deployment openflows-controller --replicas=2 -n openflows
    kubectl rollout restart deployment openflows-coder -n openflows
    ```
 
+### Onboard a teammate with namespace-scoped cluster access
+
+`access/rbac/openflows-namespace-admins.yaml` binds `ClusterRole/admin`,
+scoped to the `openflows` namespace only, to the certificate group
+`openflows-admins`. Access is granted per person via a signed client cert,
+not a shared credential.
+
+1. Apply the RoleBinding once per cluster (already live on homelab):
+   ```bash
+   kubectl apply -f access/rbac/openflows-namespace-admins.yaml
+   ```
+2. The teammate runs, from their own machine (private key never leaves it):
+   ```bash
+   ./access/scripts/join-openflows.sh <username>
+   ```
+3. A cluster admin approves the resulting CSR:
+   ```bash
+   kubectl certificate approve <username>-openflows
+   ```
+4. The teammate verifies scope:
+   ```bash
+   KUBECONFIG=~/.kube/homelab-<username>.yaml kubectl auth can-i --list -n openflows
+   ```
+
 ## Backup & Restore
 
 - **Redis** holds the OpenFlows SharedStore, the single source of truth for

@@ -1,0 +1,24 @@
+# Namespace-scoped admin for the openflows namespace.
+#
+# Grants exactly ClusterRole/admin inside the openflows namespace and nothing
+# outside it. Membership comes from the certificate group O=openflows-admins,
+# so access is granted by issuing a client cert with that group, not by listing
+# users here.
+#
+# NOTE: the built-in admin ClusterRole includes read/write on secrets. In this
+# namespace that means the `openflows` secret (Coder owner session token, GitHub
+# App secret, chat-hook signing key, AI gateway key) and postgres credentials.
+# Granting this is equivalent to handing over the deployment.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openflows-namespace-admins
+  namespace: openflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: openflows-admins

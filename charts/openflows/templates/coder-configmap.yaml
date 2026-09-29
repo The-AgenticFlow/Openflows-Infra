@@ -24,3 +24,6 @@ data:
   # separate Deployment. hookHost is the Service name the nexus template creates.
   CODER_CHAT_HOOK_URL: "http://{{ .Values.controller.hookHost | default "openflows-nexus" }}:{{ .Values.controller.service.port }}/experimental/hooks/chat"
   CODER_CHAT_HOOK_ALLOW_INSECURE: {{ .Values.coder.chatHookAllowInsecure | quote }}
+  # AI Gateway: Coder's built-in chat (used by the controller for ticket
+  # assignment) needs an OpenAI-compatible endpoint. Points at the LLM gateway.
+  CODER_AI_GATEWAY_OPENAI_BASE_URL: {{ .Values.coder.aiGatewayOpenaiBaseUrl | quote }}

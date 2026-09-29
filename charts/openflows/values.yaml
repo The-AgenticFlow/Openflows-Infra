@@ -59,6 +59,9 @@ coder:
   # Agent lifecycle hooks (experimental).
   experiments: agent-lifecycle-hooks
   chatHookAllowInsecure: true
+  # AI Gateway: OpenAI-compatible endpoint for Coder's built-in chat (the
+  # controller uses it for ticket assignment). Key goes in secrets.
+  aiGatewayOpenaiBaseUrl: "https://api.ai.camer.digital/v1"
   resources: {}
   service:
     type: ClusterIP
@@ -145,6 +148,8 @@ secrets:
   coderSessionToken: ""
   coderAdminPassword: ""
   coderChatHookSecret: ""   # 32+ random bytes
+  # Key for the AI Gateway (Coder chat). Same LLM gateway as the agents.
+  aiGatewayOpenaiKey: ""
   # GitHub App
   githubClientId: ""
   githubClientSecret: ""

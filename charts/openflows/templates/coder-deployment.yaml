@@ -49,6 +49,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "openflows.fullname" . }}-chat-hook-secret
                   key: secret
+            - name: CODER_AI_GATEWAY_OPENAI_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openflows.fullname" . }}
+                  key: aiGatewayOpenaiKey
           {{- with .Values.coder.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

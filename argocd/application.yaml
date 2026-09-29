@@ -12,14 +12,18 @@ spec:
     helm:
       values: |
         coder:
-          accessUrl: http://coder.openflows.home
+          accessUrl: http://openflows.int
           chatHookAllowInsecure: true
           externalAuth:
             clientId: Iv23liMefXkQScetBMqI
           ingress:
             enabled: true
             className: nginx
-            host: coder.openflows.home
+            host: openflows.int
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+            tls:
+              enabled: false
           service:
             type: ClusterIP
         controller:

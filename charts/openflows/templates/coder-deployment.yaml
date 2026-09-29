@@ -16,6 +16,8 @@ spec:
       labels:
         {{- include "openflows.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: coder
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/coder-configmap.yaml") . | sha256sum }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

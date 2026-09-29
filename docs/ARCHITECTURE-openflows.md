@@ -6,7 +6,7 @@
 |---|---|
 | Namespace | `openflows` (default) |
 | Chart | `charts/openflows` |
-| Workload shape | 2 StatefulSets (redis, postgres), 2 Deployments (coder, controller) |
+| Workload shape | 2 StatefulSets (redis, postgres), 1 Deployment (coder); controller runs inside the nexus workspace by default |
 | Coder endpoint | `https://coder.example.com` (ingress) |
 | Controller hook port | 3001 |
 | Provisioner | kubernetes |
@@ -20,17 +20,15 @@ flowchart LR
     C[Coder server]
     P[(PostgreSQL)]
     R[(Redis)]
-    CT[OpenFlows controller]
   end
   subgraph Workspaces
-    N[Nexus workspace]
+    N[Nexus workspace<br/>runs the controller]
     W[Worker workspaces]
   end
   C --> P
-  C --> CT
-  CT --> R
-  CT --> C
   C --> N
+  N --> R
+  N --> C
   C --> W
   W --> R
 ```
@@ -47,7 +45,8 @@ long-lived and trusted. The worker workspaces are ephemeral and governed.
 | Coder | v2.37.1 | `values.yaml` -> `coder.tag` | Chats API is experimental; pin and verify |
 | Redis | 7-alpine | `values.yaml` -> `redis.image` | |
 | PostgreSQL | 16-alpine | `values.yaml` -> `postgres.image` | |
-| OpenFlows image | latest | `values.yaml` -> `controller.tag` | Pin to a release tag, not `latest` |
+| Workspace image | 1.3.3 | `values.yaml` -> `workspace.image` | Runs the embedded controller (`openflows run`) by default |
+| OpenFlows image | latest | `values.yaml` -> `controller.tag` | Only used when `controller.enabled=true`; pin to a release tag, not `latest` |
 
 ## Components
 
@@ -56,7 +55,8 @@ long-lived and trusted. The worker workspaces are ephemeral and governed.
 | Redis | StatefulSet | `redis:7-alpine` | OpenFlows SharedStore, single source of truth |
 | PostgreSQL | StatefulSet | `postgres:16-alpine` | Coder database |
 | Coder | Deployment | `ghcr.io/coder/coder` | Control plane: identity, model gateway, API, provisioner |
-| Controller | Deployment | `ghcr.io/the-agenticflow/openflows` | Orchestration loop + hook consumer + A2A relay |
+| Controller (default) | Process in the nexus workspace pod | Workspace image (`openflows` binary) | Orchestration loop + hook consumer + A2A relay, started by the nexus template's startup script |
+| Controller (opt-in) | Deployment | `ghcr.io/the-agenticflow/openflows` | Same role, lifted out of the workspace when `controller.enabled=true` |
 
 ## Key Flows
 
@@ -64,14 +64,14 @@ long-lived and trusted. The worker workspaces are ephemeral and governed.
 sequenceDiagram
   participant U as User
   participant C as Coder
-  participant CT as Controller
+  participant N as Nexus (controller)
   participant R as Redis
   U->>C: GitHub issue
-  C->>CT: lifecycle hook
-  CT->>R: read/write SharedStore
-  CT->>C: provision workspace, create chat
-  C->>CT: agent progress
-  CT->>C: merge PR
+  C->>N: lifecycle hook
+  N->>R: read/write SharedStore
+  N->>C: provision workspace, create chat
+  C->>N: agent progress
+  N->>C: merge PR
 ```
 
 The controller polls Redis every 15 seconds, runs one flow pass, and sleeps.
@@ -81,9 +81,12 @@ provision workspaces. Worker workspaces talk to Redis only through the
 
 ## Key Decisions
 
-- **Standalone controller Deployment.** The controller is lifted out of the
-  nexus workspace into its own Deployment. Simpler to operate than the
-  in-workspace model. Reversible via `controller.enabled=false`.
+- **In-workspace controller by default.** The controller runs as the
+  `openflows run` process inside the nexus workspace pod, started by the
+  nexus template's startup script. No separate Deployment to operate when
+  there's already exactly one workspace running the control loop. Lift it
+  into a standalone Deployment via `controller.enabled=true` to decouple its
+  lifecycle from the nexus workspace.
 - **Kubernetes provisioner.** Coder creates workspace pods natively instead of
   mounting a docker socket. Requires the RBAC in `coder-rbac.yaml`.
 - **Control plane first.** The chart covers Redis, PostgreSQL, Coder, and the
@@ -118,5 +121,5 @@ manifest or Helm value.
 | `charts/openflows/values.yaml` | All chart configuration |
 | `charts/openflows/templates/coder-deployment.yaml` | Coder server |
 | `charts/openflows/templates/coder-rbac.yaml` | Kubernetes provisioner RBAC |
-| `charts/openflows/templates/controller-deployment.yaml` | Controller |
+| `charts/openflows/templates/controller-deployment.yaml` | Controller (only rendered when `controller.enabled=true`) |
 | `charts/openflows/templates/secrets.yaml` | Secret rendering |

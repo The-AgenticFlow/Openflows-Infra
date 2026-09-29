@@ -45,3 +45,17 @@ Component selector labels (e.g. coder, controller, redis, postgres).
 {{ include "openflows.selectorLabels" . }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
+
+{{/*
+Name of the main app Secret: existingSecret override, or the chart-rendered default.
+*/}}
+{{- define "openflows.secretName" -}}
+{{- .Values.existingSecret | default (include "openflows.fullname" .) }}
+{{- end }}
+
+{{/*
+Name of the Postgres Secret: existingSecret override, or the chart-rendered default.
+*/}}
+{{- define "openflows.postgresSecretName" -}}
+{{- .Values.postgres.existingSecret | default (printf "%s-postgres" (include "openflows.fullname" .)) }}
+{{- end }}

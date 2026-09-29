@@ -34,7 +34,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}-postgres
+                  name: {{ include "openflows.postgresSecretName" . }}
                   key: password
           ports:
             - name: postgres

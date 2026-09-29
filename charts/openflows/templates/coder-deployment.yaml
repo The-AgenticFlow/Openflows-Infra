@@ -35,14 +35,14 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}-postgres
+                  name: {{ include "openflows.postgresSecretName" . }}
                   key: password
             - name: CODER_PG_CONNECTION_URL
               value: "postgres://{{ .Values.postgres.user }}:$(POSTGRES_PASSWORD)@{{ include "openflows.fullname" . }}-postgres:5432/{{ .Values.postgres.database }}?sslmode=disable"
             - name: CODER_EXTERNAL_AUTH_0_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}
+                  name: {{ include "openflows.secretName" . }}
                   key: githubClientSecret
             - name: CODER_CHAT_HOOK_SECRET
               valueFrom:
@@ -52,7 +52,7 @@ spec:
             - name: CODER_AI_GATEWAY_OPENAI_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}
+                  name: {{ include "openflows.secretName" . }}
                   key: aiGatewayOpenaiKey
           {{- with .Values.coder.resources }}
           resources:

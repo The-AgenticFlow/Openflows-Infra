@@ -47,25 +47,25 @@ spec:
             - name: CODER_SESSION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}
+                  name: {{ include "openflows.secretName" . }}
                   key: coderSessionToken
             - name: CODER_CHAT_HOOK_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}
+                  name: {{ include "openflows.secretName" . }}
                   key: coderChatHookSecret
             {{- if .Values.secrets.slackWebhookUrl }}
             - name: SLACK_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}
+                  name: {{ include "openflows.secretName" . }}
                   key: slackWebhookUrl
             {{- end }}
             {{- if .Values.secrets.discordWebhookUrl }}
             - name: DISCORD_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}
+                  name: {{ include "openflows.secretName" . }}
                   key: discordWebhookUrl
             {{- end }}
           {{- with .Values.controller.resources }}

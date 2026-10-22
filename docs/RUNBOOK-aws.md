@@ -73,7 +73,20 @@ user before hand-over, an organization administrator, or the account root).
 
 ### Bootstrap (first time only)
 
-The state buckets have to exist before any other root can use them.
+The state buckets and the pipeline's roles have to exist before any other
+root can use them, so the bootstrap is the one apply a person runs by hand.
+After it, every change goes through the pipeline and the operator's
+administrator rights come off.
+
+```mermaid
+flowchart LR
+    U["Operator IAM user, admin, MFA session"] -->|"1. apply bootstrap"| BOOT["Buckets, boundary, OIDC provider, roles"]
+    BOOT -->|"2. migrate state"| BB[("Bootstrap state bucket")]
+    BOOT -->|"3. role ARNs to repo variables"| GH["GitHub Actions"]
+    GH -->|"4. pipeline applies"| ENV["Staging, then production"]
+    ENV -->|"5. add SSO admin as break-glass"| BG["State bucket allow-lists"]
+    BG -->|"6. remove admin, deactivate key"| U2["Operator assumes roles only"]
+```
 
 1. As an IAM user with administrator rights, in an MFA session (for
    example from `aws sts get-session-token --serial-number <mfa-arn> --token-code <code>`),
@@ -111,9 +124,12 @@ The state buckets have to exist before any other root can use them.
    records at the parent domain. Then set `wait_for_certificate_validation = true`
    and apply again so the certificate is issued.
 6. Hand over from the bootstrap user to the roles. Store the plan and apply
-   role ARNs from the bootstrap outputs as GitHub repository variables. Then
-   remove `AdministratorAccess` from the bootstrap user and give it only this
-   policy, so it can assume the OpenFlows roles with MFA:
+   role ARNs from the bootstrap outputs as GitHub repository variables. Add
+   the account's SSO administrator role to `state_break_glass_principal_arns`
+   and apply bootstrap: the buckets' explicit deny would otherwise block it
+   too, leaving only the account root to recover a broken policy. Then remove
+   `AdministratorAccess` from the bootstrap user and give it only this policy,
+   so it can assume the OpenFlows roles with MFA:
 
    ```json
    {

@@ -21,32 +21,37 @@ services build on top of it.
 
 ## System Overview
 
+Three Terraform roots share one AWS account. `terraform/bootstrap` creates
+everything the other two depend on: the state buckets, the IAM that GitHub
+Actions and people use, and the permissions boundary that caps all of it.
+Each environment root then owns its own network, DNS zone and certificate, and
+keeps its state in its own bucket.
+
 ```mermaid
 flowchart TB
-    subgraph Account[AWS account, eu-west-1]
-        subgraph Bootstrap[terraform/bootstrap]
-            SB[(Staging state bucket)]
-            PB[(Production state bucket)]
-            SK[Staging KMS key]
-            PK[Production KMS key]
+    GH[GitHub Actions]
+    subgraph Account["AWS account, eu-west-1, shared with other projects"]
+        subgraph Boot["terraform/bootstrap"]
+            IAM["GitHub OIDC provider and OpenFlows roles"]
+            BND["openflows-permissions-boundary"]
+            BB[("Bootstrap state bucket")]
+            SB[("Staging state bucket")]
+            PB[("Production state bucket")]
         end
-        subgraph Staging[terraform/envs/staging]
-            SV[VPC 10.20.0.0/16]
-            SZ[Route 53 zone]
-            SC[ACM wildcard certificate]
+        subgraph Stg["terraform/envs/staging"]
+            SNET["VPC 10.20.0.0/16, Route 53 zone, certificate"]
         end
-        subgraph Production[terraform/envs/production]
-            PV[VPC 10.30.0.0/16]
-            PZ[Route 53 zone]
-            PC[ACM wildcard certificate]
+        subgraph Prd["terraform/envs/production"]
+            PNET["VPC 10.30.0.0/16, Route 53 zone, certificate"]
         end
     end
-    SK --> SB
-    PK --> PB
-    Staging -->|state| SB
-    Production -->|state| PB
-    SZ -->|DNS validation| SC
-    PZ -->|DNS validation| PC
+    GH -->|"OIDC, no stored keys"| IAM
+    BND -.->|caps| IAM
+    IAM -->|plans and applies| Stg
+    IAM -->|plans and applies| Prd
+    Boot -->|state| BB
+    Stg -->|state| SB
+    Prd -->|state| PB
 ```
 
 Each environment's network spans three availability zones:
@@ -84,6 +89,69 @@ flowchart LR
 | `openflows-<env>-terraform-plan` | IAM role | `terraform/bootstrap` | Read-only plans from pull requests and `main` |
 | `openflows-<env>-terraform-apply` | IAM role | `terraform/bootstrap` | Applies: staging from `main`, production from `v*` tags; limited to its own environment's tags, IAM path and buckets |
 | `openflows-platform-admin`, `openflows-readonly` | IAM roles | `terraform/bootstrap` | Human break-glass and day-to-day access, MFA required |
+
+## Access Model
+
+No AWS key is stored in GitHub, and nobody works as an administrator day to
+day. GitHub Actions reaches AWS only through OIDC, and each role trusts a
+specific kind of run. People sign in as an IAM user and assume a role with MFA.
+Every one of these roles carries the permissions boundary.
+
+```mermaid
+flowchart LR
+    PR["Pull request or main"] -->|OIDC| PLAN["openflows-env-terraform-plan, read-only"]
+    MAIN["Push to main"] -->|OIDC| SAPPLY["openflows-staging-terraform-apply"]
+    TAG["Release tag v*"] -->|OIDC| PAPPLY["openflows-production-terraform-apply"]
+    USER["Operator IAM user"] -->|"assume, MFA"| ADMIN["openflows-platform-admin"]
+    USER -->|"assume, MFA"| RO["openflows-readonly"]
+    BND{{"openflows-permissions-boundary"}}
+    BND -.-> PLAN
+    BND -.-> SAPPLY
+    BND -.-> PAPPLY
+    BND -.-> ADMIN
+    BND -.-> RO
+```
+
+## Key Flows
+
+### A GitHub Actions job gets AWS credentials
+
+The job never holds a long-lived key. It trades a short-lived GitHub token for
+one hour of AWS credentials, and AWS only agrees if the token comes from this
+repository and from the ref the role trusts.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Job as GitHub Actions job
+    participant GHO as GitHub OIDC issuer
+    participant STS as AWS STS
+    participant Role as openflows-staging-terraform-apply
+    participant State as Staging state bucket
+    Job->>GHO: Request an ID token for audience sts.amazonaws.com
+    GHO-->>Job: Token with sub repo:The-AgenticFlow/Openflows-Infra:ref:refs/heads/main
+    Job->>STS: AssumeRoleWithWebIdentity with the token
+    STS->>Role: Check the trust policy: repository and ref match
+    STS-->>Job: Temporary credentials, valid one hour
+    Job->>State: Read state and write the lock file
+    Job->>Job: terraform plan, then apply the saved plan
+```
+
+### How an AWS call from an apply role is decided
+
+`AdministratorAccess` grants the call, then two layers of explicit deny take
+it back unless it stays inside OpenFlows and inside the role's environment.
+
+```mermaid
+flowchart TD
+    CALL["AWS call from openflows-staging-terraform-apply"] --> B1{"Touches IAM outside /openflows/, a bucket not named openflows-*, or a resource not tagged Project=openflows?"}
+    B1 -->|yes| DENY1["Denied by the permissions boundary"]
+    B1 -->|no| B2{"Touches the bootstrap roles, the GitHub OIDC provider or the boundary?"}
+    B2 -->|yes| DENY1
+    B2 -->|no| E1{"Resource tagged for production, IAM outside /openflows/staging/, or a production bucket?"}
+    E1 -->|yes| DENY2["Denied by the role's environment-isolation policy"]
+    E1 -->|no| OK["Allowed"]
+```
 
 ## Key Decisions
 

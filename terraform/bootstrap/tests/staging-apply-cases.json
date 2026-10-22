@@ -1,0 +1,186 @@
+{
+  "identity_policies": [
+    "rendered/admin.json",
+    "rendered/staging-environment-isolation.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "upwards: cannot rewrite production apply role trust",
+      "action": "iam:UpdateAssumeRolePolicy",
+      "resource": "arn:aws:iam::686255958454:role/openflows/openflows-production-terraform-apply",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot rewrite platform admin role trust",
+      "action": "iam:UpdateAssumeRolePolicy",
+      "resource": "arn:aws:iam::686255958454:role/openflows/openflows-platform-admin",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot attach policies to its own role",
+      "action": "iam:AttachRolePolicy",
+      "resource": "arn:aws:iam::686255958454:role/openflows/openflows-staging-terraform-apply",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot edit the boundary",
+      "action": "iam:CreatePolicyVersion",
+      "resource": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot remove a role's boundary",
+      "action": "iam:DeleteRolePermissionsBoundary",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot touch the GitHub OIDC provider",
+      "action": "iam:UpdateOpenIDConnectProviderThumbprint",
+      "resource": "arn:aws:iam::686255958454:oidc-provider/token.actions.githubusercontent.com",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: create role under /openflows/staging/ with boundary",
+      "action": "iam:CreateRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
+      "expect": "allow",
+      "context": {
+        "iam:PermissionsBoundary": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary"
+      }
+    },
+    {
+      "name": "upwards: cannot create a role without the boundary",
+      "action": "iam:CreateRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
+      "expect": "deny"
+    },
+    {
+      "name": "sideways: cannot create a role under /openflows/production/",
+      "action": "iam:CreateRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/production/app",
+      "expect": "deny",
+      "context": {
+        "iam:PermissionsBoundary": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary"
+      }
+    },
+    {
+      "name": "outwards: cannot reset another user's password",
+      "action": "iam:UpdateLoginProfile",
+      "resource": "arn:aws:iam::686255958454:user/someone",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot deactivate another user's MFA",
+      "action": "iam:DeactivateMFADevice",
+      "resource": "arn:aws:iam::686255958454:user/someone",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: create the EKS service-linked role",
+      "action": "iam:CreateServiceLinkedRole",
+      "resource": "arn:aws:iam::686255958454:role/aws-service-role/eks.amazonaws.com/AWSServiceRoleForAmazonEKS",
+      "expect": "allow",
+      "context": {
+        "iam:AWSServiceName": "eks.amazonaws.com"
+      }
+    },
+    {
+      "name": "outwards: cannot terminate an untagged instance",
+      "action": "ec2:TerminateInstances",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:instance/i-0123456789abcdef0",
+      "expect": "deny"
+    },
+    {
+      "name": "relabel: cannot tag another project's instance as openflows",
+      "action": "ec2:CreateTags",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:instance/i-0123456789abcdef0",
+      "expect": "deny",
+      "context": {
+        "aws:RequestTag/Project": "openflows",
+        "aws:RequestTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: tag a staging resource while creating it",
+      "action": "ec2:CreateTags",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "ec2:CreateAction": "CreateSecurityGroup",
+        "aws:RequestTag/Project": "openflows",
+        "aws:RequestTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "sideways: cannot create a resource tagged production",
+      "action": "ec2:CreateTags",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0aaaaaaaaaaaaaaaa",
+      "expect": "deny",
+      "context": {
+        "ec2:CreateAction": "CreateSecurityGroup",
+        "aws:RequestTag/Project": "openflows",
+        "aws:RequestTag/Environment": "production"
+      }
+    },
+    {
+      "name": "outwards: cannot open another project's security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: change a staging security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "sideways: cannot change a production security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0cccccccccccccccc",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    },
+    {
+      "name": "must work: write staging state",
+      "action": "s3:PutObject",
+      "resource": "arn:aws:s3:::openflows-tfstate-staging-686255958454/envs/staging/terraform.tfstate",
+      "expect": "allow"
+    },
+    {
+      "name": "sideways: cannot write production state",
+      "action": "s3:PutObject",
+      "resource": "arn:aws:s3:::openflows-tfstate-production-686255958454/envs/production/terraform.tfstate",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot read bootstrap state",
+      "action": "s3:GetObject",
+      "resource": "arn:aws:s3:::openflows-tfstate-bootstrap-686255958454/terraform.tfstate",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot read another project's bucket",
+      "action": "s3:GetObject",
+      "resource": "arn:aws:s3:::obgdeb.com/index.html",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot read an untagged secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
+      "expect": "deny"
+    }
+  ]
+}

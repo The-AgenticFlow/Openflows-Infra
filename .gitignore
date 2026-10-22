@@ -1,0 +1,14 @@
+# Terraform working directories, state and plans. Plans and state can hold
+# secret values and must never be committed. .terraform.lock.hcl stays tracked.
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform/bootstrap/tests/rendered/

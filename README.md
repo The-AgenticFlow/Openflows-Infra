@@ -16,6 +16,9 @@ OpenFlows is an autonomous AI development team on [Coder](https://coder.com): it
 | [`charts/openflows/README.md`](charts/openflows/README.md) | Install, values, and configuration reference |
 | [`docs/ARCHITECTURE-openflows.md`](docs/ARCHITECTURE-openflows.md) | What the stack is, its components, and how data flows through it |
 | [`docs/RUNBOOK-openflows.md`](docs/RUNBOOK-openflows.md) | Day-to-day operations |
+| [`terraform/`](terraform/) | AWS foundation for staging and production: state bootstrap, shared modules, one root per environment |
+| [`docs/ARCHITECTURE-aws.md`](docs/ARCHITECTURE-aws.md) | The AWS landing zone: state, networks, DNS and certificates |
+| [`docs/RUNBOOK-aws.md`](docs/RUNBOOK-aws.md) | Bootstrap, change control, state ownership and break-glass access for the AWS foundation |
 
 ## Contributing
 

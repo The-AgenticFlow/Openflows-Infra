@@ -1,0 +1,233 @@
+# AWS Foundation Runbook
+
+How to operate the Terraform-managed AWS foundation. What it contains and
+why is in [ARCHITECTURE-aws.md](ARCHITECTURE-aws.md).
+
+## Common Operations
+
+### Working in an environment
+
+Run Terraform as `openflows-platform-admin` (see "Assuming the OpenFlows
+roles"). Each environment is its own root. Initialise it against its own
+state bucket, then plan with the inputs that are not committed yet:
+
+```bash
+cd terraform/envs/staging
+terraform init -backend-config="bucket=openflows-tfstate-staging-<account-id>"
+terraform plan -var="zone_name=<staging-domain>" -out=tfplan
+```
+
+Use `terraform/envs/production` and the production bucket for production.
+Never copy a plan file between environments, and never commit one: plan
+files can contain secret values.
+
+### Change control
+
+1. Every change starts as a PR against `main` with the plan output for each
+   affected environment in the description.
+2. A reviewer other than the author approves the PR.
+3. After merge, apply the reviewed plan to staging first, check it, then
+   plan and apply production.
+4. A plan that shows an unexpected destroy or replace stops the change until
+   the cause is understood.
+
+### State ownership
+
+| State | Bucket | Who may write it |
+|---|---|---|
+| Bootstrap | `openflows-tfstate-bootstrap-<account-id>` | Platform admin role (read) and break-glass principals |
+| Staging | `openflows-tfstate-staging-<account-id>` | Staging plan and apply roles, platform admin role, break-glass principals |
+| Production | `openflows-tfstate-production-<account-id>` | Production plan and apply roles, platform admin role, break-glass principals |
+
+Each bucket's policy denies every other principal. The allow-list is built
+from the roles in `terraform/bootstrap`, plus `state_break_glass_principal_arns`
+in its `terraform.tfvars`. Keep at least one break-glass principal there, or a
+bad policy can only be fixed by the account root.
+
+### Assuming the OpenFlows roles
+
+Human access goes through two roles, both requiring MFA:
+
+| Role | Use it for |
+|---|---|
+| `openflows-readonly` | Looking around, day to day |
+| `openflows-platform-admin` | Manual plans and applies, break-glass fixes |
+
+Add a profile per role to `~/.aws/config`, with your IAM user's profile as
+the source and your MFA device as `mfa_serial`. The CLI asks for the MFA code
+when it assumes the role:
+
+```ini
+[profile openflows-admin]
+role_arn       = arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin
+source_profile = <your-iam-user-profile>
+mfa_serial     = arn:aws:iam::<account-id>:mfa/<your-mfa-device>
+region         = eu-west-1
+```
+
+Both roles carry the permissions boundary, so they cannot touch other
+projects' IAM roles, buckets or untagged resources. They also cannot change
+the bootstrap's own roles, the GitHub OIDC provider or the boundary: apply
+`terraform/bootstrap` as a principal without the boundary (the bootstrap
+user before hand-over, an organization administrator, or the account root).
+
+### Bootstrap (first time only)
+
+The state buckets and the pipeline's roles have to exist before any other
+root can use them, so the bootstrap is the one apply a person runs by hand.
+After it, every change goes through the pipeline and the operator's
+administrator rights come off.
+
+```mermaid
+flowchart LR
+    U["Operator IAM user, admin, MFA session"] -->|"1. apply bootstrap"| BOOT["Buckets, boundary, OIDC provider, roles"]
+    BOOT -->|"2. migrate state"| BB[("Bootstrap state bucket")]
+    BOOT -->|"3. role ARNs to repo variables"| GH["GitHub Actions"]
+    GH -->|"4. pipeline applies"| ENV["Staging, then production"]
+    ENV -->|"5. add SSO admin as break-glass"| BG["State bucket allow-lists"]
+    BG -->|"6. remove admin, deactivate key"| U2["Operator assumes roles only"]
+```
+
+1. As an IAM user with administrator rights, in an MFA session (for
+   example from `aws sts get-session-token --serial-number <mfa-arn> --token-code <code>`),
+   create the buckets, keys, boundary and roles on local state. Review the
+   plan first: every resource must be named `openflows-*`.
+
+   ```bash
+   cd terraform/bootstrap
+   terraform init
+   terraform plan -out=tfplan
+   terraform apply tfplan
+   ```
+
+2. Move the bootstrap state into its own bucket. Add this block to
+   `terraform/bootstrap/versions.tf` (no `encrypt` flag: it would force
+   AES256 instead of the bucket's KMS key), then migrate:
+
+   ```hcl
+   backend "s3" {
+     key          = "terraform.tfstate"
+     region       = "eu-west-1"
+     use_lockfile = true
+   }
+   ```
+
+   ```bash
+   terraform init -migrate-state \
+     -backend-config="bucket=openflows-tfstate-bootstrap-<account-id>"
+   ```
+
+3. Delete the local `terraform.tfstate` and its backup once the migration
+   succeeds, and commit the backend block.
+4. Initialise and apply each environment as in "Working in an environment".
+5. Delegate each environment's domain: add the `name_servers` output as NS
+   records at the parent domain. Then set `wait_for_certificate_validation = true`
+   and apply again so the certificate is issued.
+6. Hand over from the bootstrap user to the roles. Store the plan and apply
+   role ARNs from the bootstrap outputs as GitHub repository variables. Add
+   the account's SSO administrator role to `state_break_glass_principal_arns`
+   and apply bootstrap: the buckets' explicit deny would otherwise block it
+   too, leaving only the account root to recover a broken policy. Then remove
+   `AdministratorAccess` from the bootstrap user and give it only this policy,
+   so it can assume the OpenFlows roles with MFA:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "sts:AssumeRole",
+       "Resource": [
+         "arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin",
+         "arn:aws:iam::<account-id>:role/openflows/openflows-readonly"
+       ],
+       "Condition": { "Bool": { "aws:MultiFactorAuthPresent": "true" } }
+     }]
+   }
+   ```
+
+   Deactivate the bootstrap user's access key once the pipeline runs.
+
+### Testing the permissions boundary
+
+`terraform/bootstrap/tests/` holds the access cases the boundary and the
+environment isolation must satisfy: what an apply role can never do (reach
+into the other environment, edit its own guard rails, change or relabel other
+projects' resources) and what it must still be able to do. Run them after any
+change to `boundary.tf` or `roles.tf`, before opening the PR. They use AWS's
+policy simulator, which evaluates the documents and changes nothing.
+
+```bash
+cd terraform/bootstrap
+terraform plan -out=tfplan
+tests/render-policies.sh tfplan
+python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
+```
+
+Every case must pass. Add a case for each new rule, both the deny it is meant
+to cause and an allow that must keep working.
+
+### Break-glass access
+
+Use break-glass access only when the normal deployer path is broken or
+locked out, for example a bucket policy that denies everyone.
+
+1. Sign in as the account's break-glass administrator. Its credentials are
+   held outside this repository and are never used for routine work.
+2. Fix the blocking problem with the smallest possible change. For a
+   lockout, remove the `DenyPrincipalsOutsideEnvironment` statement from the
+   bucket policy.
+3. Restore the intended state from Terraform right away, then record what
+   happened and why in an issue.
+
+> [!WARNING]
+> A break-glass session can reach both environments. Nothing done in it is
+> reviewed, so keep it short and bring the change back into Terraform.
+
+## Backup & Restore
+
+State buckets are versioned and keep superseded versions for 90 days. To
+recover from a bad state write, list the versions and restore the last good
+one:
+
+```bash
+aws s3api list-object-versions \
+  --bucket openflows-tfstate-staging-<account-id> \
+  --prefix envs/staging/terraform.tfstate
+aws s3api copy-object \
+  --bucket openflows-tfstate-staging-<account-id> \
+  --key envs/staging/terraform.tfstate \
+  --copy-source "openflows-tfstate-staging-<account-id>/envs/staging/terraform.tfstate?versionId=<version-id>"
+```
+
+The buckets have `prevent_destroy`, so Terraform refuses to delete them.
+
+## Monitoring & Alerts
+
+- VPC flow logs are in CloudWatch Logs, in the log group the VPC module
+  creates for each environment.
+- No alerts are defined on the foundation yet.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
+| `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |
+| `AccessDenied` on the state bucket | Principal is not one of the environment's roles or a break-glass principal | Use the environment's role, or add the principal to `state_break_glass_principal_arns` and apply bootstrap |
+| `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, a resource not tagged `Project=openflows`, or a bootstrap-managed role | Name and tag the resource as OpenFlows; for bootstrap changes, apply as a principal without the boundary |
+| `AccessDenied ... explicit deny in an identity-based policy` from an apply role | The resource, IAM path or bucket belongs to the other environment | Tag the resource with the right `Environment`, put roles under `/openflows/<env>/`, name buckets `openflows-<env>-*` |
+| GitHub Actions `Not authorized to perform sts:AssumeRoleWithWebIdentity` | The job runs from a ref the role does not trust, or sets `environment:` | Plans: pull requests or `main`. Staging apply: `main`. Production apply: a `v*` tag. Do not set `environment:` on these jobs |
+| Apply hangs on `aws_acm_certificate_validation` | The parent domain does not delegate to the zone yet | Add the NS records, or set `wait_for_certificate_validation = false` |
+
+## Rollback Procedure
+
+Revert the PR, re-plan the affected environment and apply. If an apply left
+state wrong, restore the previous state version as in "Backup & Restore",
+then plan to see what the real infrastructure looks like before applying.
+
+## Escalation
+
+If a plan shows destroys or replacements nobody can explain, or production
+is affected, stop and raise it with the platform owners before applying
+anything else.

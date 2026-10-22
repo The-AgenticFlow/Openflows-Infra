@@ -1,0 +1,36 @@
+variable "aws_account_id" {
+  description = "AWS account hosting this environment. Applying against any other account fails."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "aws_account_id must be a 12-digit AWS account ID."
+  }
+}
+
+variable "region" {
+  description = "AWS region for this environment. Must match the backend region."
+  type        = string
+  default     = "eu-west-1"
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR for this environment. Must not overlap the other environment."
+  type        = string
+}
+
+variable "single_nat_gateway" {
+  description = "One shared NAT gateway instead of one per AZ."
+  type        = bool
+}
+
+variable "zone_name" {
+  description = "Domain this environment's public hosted zone serves."
+  type        = string
+}
+
+variable "wait_for_certificate_validation" {
+  description = "Wait for ACM to issue the certificate. Set true only after the parent domain delegates to this zone."
+  type        = bool
+  default     = false
+}

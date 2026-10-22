@@ -13,8 +13,9 @@ terraform {
   backend "s3" {
     key          = "envs/production/terraform.tfstate"
     region       = "eu-west-1"
-    encrypt      = true
     use_lockfile = true
+    # No `encrypt` flag on purpose: with it and no kms_key_id the backend sends
+    # AES256, overriding the bucket's default KMS key. The bucket encrypts.
   }
 }
 

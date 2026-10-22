@@ -13,7 +13,7 @@ services build on top of it.
 | AWS account | `686255958454`, an organization member account shared with other projects (see [ADR-0004](ADR-0004-shared-aws-account.md)) |
 | Region | `eu-west-1` |
 | Terraform roots | `terraform/bootstrap`, `terraform/envs/staging`, `terraform/envs/production` |
-| State | One encrypted, versioned S3 bucket per environment, S3 native locking |
+| State | One encrypted, versioned S3 bucket per environment and one for the bootstrap, S3 native locking |
 | Networks | `10.20.0.0/16` staging, `10.30.0.0/16` production |
 | CI identity | GitHub Actions OIDC, one plan role and one apply role per environment |
 | Human access | `openflows-platform-admin` and `openflows-readonly`, both MFA only |
@@ -73,8 +73,8 @@ flowchart LR
 
 | Component | Type | Source | Purpose |
 |---|---|---|---|
-| State buckets | S3 | `terraform/bootstrap` | One per environment: versioned, KMS-encrypted, public access blocked, TLS only |
-| State keys | KMS | `terraform/bootstrap` | One customer-managed key per environment, yearly rotation |
+| State buckets | S3 | `terraform/bootstrap` | One per environment plus one for the bootstrap: versioned, KMS-only uploads, public access blocked, TLS only |
+| State keys | KMS | `terraform/bootstrap` | One customer-managed key per state bucket, yearly rotation |
 | VPC | VPC module | `terraform/modules/network` | Public and private subnets across three AZs, flow logs to CloudWatch |
 | NAT gateways | VPC module | `terraform/modules/network` | Private subnet egress: one shared in staging, one per AZ in production |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
@@ -82,7 +82,7 @@ flowchart LR
 | Permissions boundary | IAM policy | `terraform/bootstrap` | Ceiling on every OpenFlows role: IAM under `/openflows/` only, `openflows-*` buckets only, no changes to resources not tagged `Project=openflows` |
 | GitHub OIDC provider | IAM | `terraform/bootstrap` | Lets GitHub Actions assume AWS roles without stored keys |
 | `openflows-<env>-terraform-plan` | IAM role | `terraform/bootstrap` | Read-only plans from pull requests and `main` |
-| `openflows-<env>-terraform-apply` | IAM role | `terraform/bootstrap` | Applies: staging from `main`, production from `v*` tags |
+| `openflows-<env>-terraform-apply` | IAM role | `terraform/bootstrap` | Applies: staging from `main`, production from `v*` tags; limited to its own environment's tags, IAM path and buckets |
 | `openflows-platform-admin`, `openflows-readonly` | IAM roles | `terraform/bootstrap` | Human break-glass and day-to-day access, MFA required |
 
 ## Key Decisions
@@ -95,6 +95,14 @@ flowchart LR
 - **CI trust pinned to refs, not GitHub environments.** Private repositories
   on the current GitHub plan cannot protect environments, so the AWS trust
   policy is the gate: production apply only from `v*` tags.
+- **Environments are isolated from each other, not only from other projects.**
+  Each apply role can only change resources tagged with its own `Environment`,
+  only write IAM under `/openflows/<env>/`, and only use `openflows-<env>-*`
+  buckets and its own state bucket.
+- **The bootstrap owns the shared IAM.** Its roles, the GitHub OIDC provider
+  and the boundary cannot be changed by any role that carries the boundary,
+  and its state lives in its own bucket that only the platform admin role and
+  break-glass principals can reach.
 - **One Terraform root per environment.** Each environment has its own state
   file, backend key and inputs, so a staging plan can never touch production
   resources. Shared code lives in `terraform/modules`.
@@ -122,9 +130,11 @@ flowchart LR
 
 The landing zone holds no application secrets. Terraform state can contain
 sensitive values, so each state bucket is encrypted with its environment's
-KMS key and refuses non-TLS access. Once deployer roles exist, setting
-`state_admin_principal_arns` in the bootstrap root denies every other
-principal access to that environment's state.
+KMS key, rejects uploads that request any other encryption, and refuses
+non-TLS access. Each bucket denies access except for its environment's plan
+and apply roles, the platform admin role, and
+`state_break_glass_principal_arns` from the bootstrap root. The bootstrap's
+own bucket admits only the platform admin role and break-glass.
 
 ## Known Limitations
 

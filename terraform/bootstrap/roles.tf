@@ -118,6 +118,79 @@ resource "aws_iam_role_policy_attachment" "terraform_apply_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
+# The boundary separates OpenFlows from other projects; this separates the two
+# OpenFlows environments, so one environment's apply cannot touch the other's.
+data "aws_iam_policy_document" "terraform_apply_environment" {
+  for_each = var.environments
+
+  statement {
+    sid     = "DenyIamOutsideEnvironmentPath"
+    effect  = "Deny"
+    actions = local.iam_write_actions
+    not_resources = [
+      "arn:aws:iam::${var.aws_account_id}:role/openflows/${each.key}/*",
+      "arn:aws:iam::${var.aws_account_id}:policy/openflows/${each.key}/*",
+      "arn:aws:iam::${var.aws_account_id}:instance-profile/openflows/${each.key}/*",
+      "arn:aws:iam::${var.aws_account_id}:oidc-provider/oidc.eks.*",
+    ]
+    condition {
+      test     = "Null"
+      variable = "iam:AWSServiceName"
+      values   = ["true"]
+    }
+  }
+
+  statement {
+    sid     = "DenyS3OutsideEnvironment"
+    effect  = "Deny"
+    actions = ["s3:*"]
+    not_resources = [
+      "arn:aws:s3:::openflows-${each.key}-*",
+      "arn:aws:s3:::openflows-${each.key}-*/*",
+      aws_s3_bucket.state[each.key].arn,
+      "${aws_s3_bucket.state[each.key].arn}/*",
+    ]
+  }
+
+  statement {
+    sid       = "DenyChangesToOtherEnvironment"
+    effect    = "Deny"
+    actions   = local.protected_change_actions
+    resources = ["*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:ResourceTag/Environment"
+      values   = [each.key]
+    }
+  }
+
+  # New resources must carry this environment's tag, never the other one.
+  statement {
+    sid       = "DenyTaggingAsOtherEnvironment"
+    effect    = "Deny"
+    actions   = ["*"]
+    resources = ["*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:RequestTag/Environment"
+      values   = [each.key]
+    }
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/Environment"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "terraform_apply_environment" {
+  for_each = var.environments
+
+  name   = "environment-isolation"
+  role   = aws_iam_role.terraform_apply[each.key].id
+  policy = data.aws_iam_policy_document.terraform_apply_environment[each.key].json
+}
+
 # Human access: assumed from an IAM user only with MFA.
 data "aws_iam_policy_document" "human_trust" {
   statement {

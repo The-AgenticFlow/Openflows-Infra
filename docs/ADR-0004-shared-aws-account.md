@@ -26,10 +26,16 @@ from each other and from the other projects, comes from layers Terraform owns:
   can only manage IAM under the `/openflows/` path, only use `openflows-*` S3
   buckets, and only change or read secrets of resources tagged
   `Project=openflows`. A role can only create roles that carry the same
-  boundary, and cannot remove or edit it.
-- **State:** one S3 state bucket and one KMS key per environment. Each bucket
-  denies every principal except that environment's plan and apply roles, the
-  platform admin role and a break-glass principal.
+  boundary, cannot remove it, and cannot change the bootstrap's roles, the
+  GitHub OIDC provider or the boundary itself. Tags can only be written while
+  creating a resource or on resources already tagged `Project=openflows`, so
+  another project's resource cannot be relabelled and then changed.
+- **State:** one S3 state bucket and one KMS key per environment, and one
+  for the bootstrap. Each bucket accepts only KMS-encrypted uploads and denies
+  every principal except its own roles and a break-glass principal.
+- **Environments:** each apply role carries an extra deny that limits it to
+  resources tagged with its own `Environment`, IAM under
+  `/openflows/<env>/` and its own buckets.
 - **Identity:** GitHub Actions assumes per-environment roles through OIDC.
   Plan roles are read-only; staging applies only from `main`, production only
   from `v*` release tags. Humans assume `openflows-platform-admin` or

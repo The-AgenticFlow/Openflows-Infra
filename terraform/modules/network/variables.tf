@@ -34,6 +34,21 @@ variable "single_nat_gateway" {
   type        = bool
 }
 
+variable "iam_path" {
+  description = "IAM path for roles this module creates. Must be the environment's path under /openflows/."
+  type        = string
+
+  validation {
+    condition     = startswith(var.iam_path, "/openflows/") && endswith(var.iam_path, "/")
+    error_message = "iam_path must start with /openflows/ and end with /."
+  }
+}
+
+variable "permissions_boundary_arn" {
+  description = "Permissions boundary every OpenFlows role must carry."
+  type        = string
+}
+
 variable "flow_log_retention_days" {
   description = "CloudWatch retention for VPC flow logs."
   type        = number

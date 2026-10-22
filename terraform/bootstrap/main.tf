@@ -1,14 +1,30 @@
 locals {
+  # Each environment has its own state bucket, and so does the bootstrap root,
+  # so no environment deployer can reach the state that manages its own roles.
+  state_scopes = setunion(var.environments, ["bootstrap"])
+
   # Bucket names are global across AWS, so the account ID keeps them unique.
   state_bucket_names = {
-    for env in var.environments : env => "openflows-tfstate-${env}-${var.aws_account_id}"
+    for scope in local.state_scopes : scope => "openflows-tfstate-${scope}-${var.aws_account_id}"
   }
+
+  # Principals allowed into each state bucket besides break-glass.
+  state_bucket_principals = merge(
+    {
+      for env in var.environments : env => [
+        aws_iam_role.terraform_plan[env].arn,
+        aws_iam_role.terraform_apply[env].arn,
+        aws_iam_role.platform_admin.arn,
+      ]
+    },
+    { bootstrap = [aws_iam_role.platform_admin.arn] },
+  )
 }
 
-# One customer-managed key per environment, so access to one environment's
-# state can be revoked without touching the other.
+# One customer-managed key per state scope, so access to one scope's state can
+# be revoked without touching the others.
 resource "aws_kms_key" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   description             = "Encrypts OpenFlows ${each.key} Terraform state"
   enable_key_rotation     = true
@@ -17,14 +33,14 @@ resource "aws_kms_key" "state" {
 }
 
 resource "aws_kms_alias" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   name          = "alias/openflows-tfstate-${each.key}"
   target_key_id = aws_kms_key.state[each.key].key_id
 }
 
 resource "aws_s3_bucket" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket = local.state_bucket_names[each.key]
   tags   = { Environment = each.key }
@@ -35,7 +51,7 @@ resource "aws_s3_bucket" "state" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket = aws_s3_bucket.state[each.key].id
   rule {
@@ -44,7 +60,7 @@ resource "aws_s3_bucket_ownership_controls" "state" {
 }
 
 resource "aws_s3_bucket_public_access_block" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket                  = aws_s3_bucket.state[each.key].id
   block_public_acls       = true
@@ -54,7 +70,7 @@ resource "aws_s3_bucket_public_access_block" "state" {
 }
 
 resource "aws_s3_bucket_versioning" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket = aws_s3_bucket.state[each.key].id
   versioning_configuration {
@@ -63,7 +79,7 @@ resource "aws_s3_bucket_versioning" "state" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket = aws_s3_bucket.state[each.key].id
   rule {
@@ -76,7 +92,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket = aws_s3_bucket.state[each.key].id
   rule {
@@ -95,7 +111,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "state" {
 }
 
 data "aws_iam_policy_document" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   statement {
     sid     = "DenyInsecureTransport"
@@ -116,8 +132,30 @@ data "aws_iam_policy_document" "state" {
     }
   }
 
-  # Everyone outside this environment's roles, the admin role and break-glass is
-  # denied, which keeps the other environment's pipeline out of this state.
+  # Uploads that ask for anything but KMS would bypass the scope's key.
+  statement {
+    sid       = "DenyNonKmsEncryption"
+    effect    = "Deny"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.state[each.key].arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["aws:kms"]
+    }
+    condition {
+      test     = "Null"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["false"]
+    }
+  }
+
+  # Everyone outside this scope's roles and break-glass is denied, which keeps
+  # each environment's pipeline out of the other's state and the bootstrap's.
   statement {
     sid     = "DenyPrincipalsOutsideEnvironment"
     effect  = "Deny"
@@ -133,20 +171,13 @@ data "aws_iam_policy_document" "state" {
     condition {
       test     = "ArnNotLike"
       variable = "aws:PrincipalArn"
-      values = concat(
-        [
-          aws_iam_role.terraform_plan[each.key].arn,
-          aws_iam_role.terraform_apply[each.key].arn,
-          aws_iam_role.platform_admin.arn,
-        ],
-        var.state_break_glass_principal_arns,
-      )
+      values   = concat(local.state_bucket_principals[each.key], var.state_break_glass_principal_arns)
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "state" {
-  for_each = var.environments
+  for_each = local.state_scopes
 
   bucket = aws_s3_bucket.state[each.key].id
   policy = data.aws_iam_policy_document.state[each.key].json

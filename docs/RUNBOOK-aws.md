@@ -35,7 +35,7 @@ files can contain secret values.
 
 | State | Bucket | Who may write it |
 |---|---|---|
-| Bootstrap | Production state bucket, key `bootstrap/terraform.tfstate` | Platform admin role and break-glass principals |
+| Bootstrap | `openflows-tfstate-bootstrap-<account-id>` | Platform admin role (read) and break-glass principals |
 | Staging | `openflows-tfstate-staging-<account-id>` | Staging plan and apply roles, platform admin role, break-glass principals |
 | Production | `openflows-tfstate-production-<account-id>` | Production plan and apply roles, platform admin role, break-glass principals |
 
@@ -66,7 +66,10 @@ region         = eu-west-1
 ```
 
 Both roles carry the permissions boundary, so they cannot touch other
-projects' IAM roles, buckets or untagged resources.
+projects' IAM roles, buckets or untagged resources. They also cannot change
+the bootstrap's own roles, the GitHub OIDC provider or the boundary: apply
+`terraform/bootstrap` as a principal without the boundary (the bootstrap
+user before hand-over, an organization administrator, or the account root).
 
 ### Bootstrap (first time only)
 
@@ -84,21 +87,21 @@ The state buckets have to exist before any other root can use them.
    terraform apply tfplan
    ```
 
-2. Move the bootstrap state into the production bucket. Add this block to
-   `terraform/bootstrap/versions.tf`, then migrate:
+2. Move the bootstrap state into its own bucket. Add this block to
+   `terraform/bootstrap/versions.tf` (no `encrypt` flag: it would force
+   AES256 instead of the bucket's KMS key), then migrate:
 
    ```hcl
    backend "s3" {
-     key          = "bootstrap/terraform.tfstate"
+     key          = "terraform.tfstate"
      region       = "eu-west-1"
-     encrypt      = true
      use_lockfile = true
    }
    ```
 
    ```bash
    terraform init -migrate-state \
-     -backend-config="bucket=openflows-tfstate-production-<account-id>"
+     -backend-config="bucket=openflows-tfstate-bootstrap-<account-id>"
    ```
 
 3. Delete the local `terraform.tfstate` and its backup once the migration
@@ -177,7 +180,8 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
 | `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |
 | `AccessDenied` on the state bucket | Principal is not one of the environment's roles or a break-glass principal | Use the environment's role, or add the principal to `state_break_glass_principal_arns` and apply bootstrap |
-| `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, or a resource not tagged `Project=openflows` | Name and tag the resource as OpenFlows; if the boundary itself needs changing, apply bootstrap as a principal without it |
+| `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, a resource not tagged `Project=openflows`, or a bootstrap-managed role | Name and tag the resource as OpenFlows; for bootstrap changes, apply as a principal without the boundary |
+| `AccessDenied ... explicit deny in an identity-based policy` from an apply role | The resource, IAM path or bucket belongs to the other environment | Tag the resource with the right `Environment`, put roles under `/openflows/<env>/`, name buckets `openflows-<env>-*` |
 | GitHub Actions `Not authorized to perform sts:AssumeRoleWithWebIdentity` | The job runs from a ref the role does not trust, or sets `environment:` | Plans: pull requests or `main`. Staging apply: `main`. Production apply: a `v*` tag. Do not set `environment:` on these jobs |
 | Apply hangs on `aws_acm_certificate_validation` | The parent domain does not delegate to the zone yet | Add the NS records, or set `wait_for_certificate_validation = false` |
 

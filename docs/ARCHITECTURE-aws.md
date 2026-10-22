@@ -80,7 +80,7 @@ flowchart LR
 |---|---|---|---|
 | State buckets | S3 | `terraform/bootstrap` | One per environment plus one for the bootstrap: versioned, KMS-only uploads, public access blocked, TLS only |
 | State keys | KMS | `terraform/bootstrap` | One customer-managed key per state bucket, yearly rotation |
-| VPC | VPC module | `terraform/modules/network` | Public and private subnets across three AZs, flow logs to CloudWatch |
+| VPC | VPC module | `terraform/modules/network` | Public and private subnets across three AZs with their own route tables, flow logs to CloudWatch |
 | NAT gateways | VPC module | `terraform/modules/network` | Private subnet egress: one shared in staging, one per AZ in production |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
 | Certificate | ACM | `terraform/modules/dns` | Wildcard certificate for the HTTPS ingress, validated through the zone |
@@ -190,7 +190,9 @@ flowchart TD
   only through NAT.
 - Subnets carry the tags the AWS Load Balancer Controller uses to find them:
   `kubernetes.io/role/elb` on public, `kubernetes.io/role/internal-elb` on private.
-- The default security group has every rule removed.
+- The VPC's default security group, network ACL and route table are left as
+  AWS creates them and are not used: workloads get their own security groups
+  and subnets their own route tables.
 - VPC flow logs go to CloudWatch Logs with 90-day retention.
 - The two environments' VPCs are not peered.
 
@@ -211,6 +213,10 @@ own bucket admits only the platform admin role and break-glass.
 - No CI job plans or applies these roots. Plans and applies are manual and
   follow the change-control process in the runbook.
 - Staging uses one NAT gateway, so an AZ outage cuts staging egress.
+- The default security group keeps AWS's default rules (traffic between its
+  members). AWS creates it untagged, so the permissions boundary stops
+  OpenFlows roles from adopting it, and it cannot be locked down from
+  Terraform. Nothing is attached to it.
 - The account is shared with other projects; see the consequences in ADR-0004.
   Record changes in other projects' hosted zones cannot be blocked by tag, so
   plan review is the control there.

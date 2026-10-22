@@ -39,10 +39,11 @@ module "vpc" {
   public_subnet_tags  = { "kubernetes.io/role/elb" = "1" }
   private_subnet_tags = { "kubernetes.io/role/internal-elb" = "1" }
 
-  # Strip every rule from the default security group so nothing relies on it.
-  manage_default_security_group  = true
-  default_security_group_ingress = []
-  default_security_group_egress  = []
+  # AWS creates the VPC's default security group, NACL and route table without
+  # tags, so the permissions boundary forbids adopting them. Nothing uses them.
+  manage_default_security_group = false
+  manage_default_network_acl    = false
+  manage_default_route_table    = false
 
   enable_flow_log                                 = true
   create_flow_log_cloudwatch_log_group            = true

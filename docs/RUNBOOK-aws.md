@@ -7,16 +7,14 @@ why is in [ARCHITECTURE-aws.md](ARCHITECTURE-aws.md).
 
 ### Working in an environment
 
-Each environment is its own root. Initialise it against its own state
-bucket, then plan with the inputs that are not committed yet:
+Run Terraform as `openflows-platform-admin` (see "Assuming the OpenFlows
+roles"). Each environment is its own root. Initialise it against its own
+state bucket, then plan with the inputs that are not committed yet:
 
 ```bash
 cd terraform/envs/staging
 terraform init -backend-config="bucket=openflows-tfstate-staging-<account-id>"
-terraform plan \
-  -var="aws_account_id=<account-id>" \
-  -var="zone_name=<staging-domain>" \
-  -out=tfplan
+terraform plan -var="zone_name=<staging-domain>" -out=tfplan
 ```
 
 Use `terraform/envs/production` and the production bucket for production.
@@ -37,26 +35,53 @@ files can contain secret values.
 
 | State | Bucket | Who may write it |
 |---|---|---|
-| Bootstrap | Production state bucket, key `bootstrap/terraform.tfstate` | Platform administrators only |
-| Staging | `openflows-tfstate-staging-<account-id>` | Staging deployer and administrators |
-| Production | `openflows-tfstate-production-<account-id>` | Production deployer and administrators |
+| Bootstrap | Production state bucket, key `bootstrap/terraform.tfstate` | Platform admin role and break-glass principals |
+| Staging | `openflows-tfstate-staging-<account-id>` | Staging plan and apply roles, platform admin role, break-glass principals |
+| Production | `openflows-tfstate-production-<account-id>` | Production plan and apply roles, platform admin role, break-glass principals |
 
-Once the deployer roles exist, list them per environment in
-`state_admin_principal_arns` in `terraform/bootstrap` and apply it. Each
-bucket then denies every principal outside its list. Always include the
-break-glass role, or the list locks administrators out.
+Each bucket's policy denies every other principal. The allow-list is built
+from the roles in `terraform/bootstrap`, plus `state_break_glass_principal_arns`
+in its `terraform.tfvars`. Keep at least one break-glass principal there, or a
+bad policy can only be fixed by the account root.
+
+### Assuming the OpenFlows roles
+
+Human access goes through two roles, both requiring MFA:
+
+| Role | Use it for |
+|---|---|
+| `openflows-readonly` | Looking around, day to day |
+| `openflows-platform-admin` | Manual plans and applies, break-glass fixes |
+
+Add a profile per role to `~/.aws/config`, with your IAM user's profile as
+the source and your MFA device as `mfa_serial`. The CLI asks for the MFA code
+when it assumes the role:
+
+```ini
+[profile openflows-admin]
+role_arn       = arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin
+source_profile = <your-iam-user-profile>
+mfa_serial     = arn:aws:iam::<account-id>:mfa/<your-mfa-device>
+region         = eu-west-1
+```
+
+Both roles carry the permissions boundary, so they cannot touch other
+projects' IAM roles, buckets or untagged resources.
 
 ### Bootstrap (first time only)
 
 The state buckets have to exist before any other root can use them.
 
-1. With administrator credentials for the account, create the buckets and
-   keys on local state:
+1. As an IAM user with administrator rights, in an MFA session (for
+   example from `aws sts get-session-token --serial-number <mfa-arn> --token-code <code>`),
+   create the buckets, keys, boundary and roles on local state. Review the
+   plan first: every resource must be named `openflows-*`.
 
    ```bash
    cd terraform/bootstrap
    terraform init
-   terraform apply -var="aws_account_id=<account-id>"
+   terraform plan -out=tfplan
+   terraform apply tfplan
    ```
 
 2. Move the bootstrap state into the production bucket. Add this block to
@@ -82,6 +107,27 @@ The state buckets have to exist before any other root can use them.
 5. Delegate each environment's domain: add the `name_servers` output as NS
    records at the parent domain. Then set `wait_for_certificate_validation = true`
    and apply again so the certificate is issued.
+6. Hand over from the bootstrap user to the roles. Store the plan and apply
+   role ARNs from the bootstrap outputs as GitHub repository variables. Then
+   remove `AdministratorAccess` from the bootstrap user and give it only this
+   policy, so it can assume the OpenFlows roles with MFA:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "sts:AssumeRole",
+       "Resource": [
+         "arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin",
+         "arn:aws:iam::<account-id>:role/openflows/openflows-readonly"
+       ],
+       "Condition": { "Bool": { "aws:MultiFactorAuthPresent": "true" } }
+     }]
+   }
+   ```
+
+   Deactivate the bootstrap user's access key once the pipeline runs.
 
 ### Break-glass access
 
@@ -130,7 +176,9 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 |---|---|---|
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
 | `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |
-| `AccessDenied` on the state bucket | Principal missing from `state_admin_principal_arns` | Add the principal and apply bootstrap, or use break-glass on a lockout |
+| `AccessDenied` on the state bucket | Principal is not one of the environment's roles or a break-glass principal | Use the environment's role, or add the principal to `state_break_glass_principal_arns` and apply bootstrap |
+| `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, or a resource not tagged `Project=openflows` | Name and tag the resource as OpenFlows; if the boundary itself needs changing, apply bootstrap as a principal without it |
+| GitHub Actions `Not authorized to perform sts:AssumeRoleWithWebIdentity` | The job runs from a ref the role does not trust, or sets `environment:` | Plans: pull requests or `main`. Staging apply: `main`. Production apply: a `v*` tag. Do not set `environment:` on these jobs |
 | Apply hangs on `aws_acm_certificate_validation` | The parent domain does not delegate to the zone yet | Add the NS records, or set `wait_for_certificate_validation = false` |
 
 ## Rollback Procedure

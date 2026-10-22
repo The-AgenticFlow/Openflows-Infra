@@ -1,5 +1,7 @@
-# Non-secret inputs for production. aws_account_id and zone_name are passed at
-# plan time (docs/RUNBOOK-aws.md) until they are decided and committed here.
+# Non-secret inputs for production. zone_name is passed at
+# plan time (docs/RUNBOOK-aws.md) until the domain is decided and committed here.
+
+aws_account_id = "686255958454"
 
 vpc_cidr = "10.30.0.0/16"
 

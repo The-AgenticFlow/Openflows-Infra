@@ -10,12 +10,14 @@ services build on top of it.
 | | |
 |---|---|
 | Environments | `staging`, `production` |
-| AWS account | One shared account (see [ADR-0004](ADR-0004-single-aws-account-environments.md)) |
+| AWS account | `686255958454`, an organization member account shared with other projects (see [ADR-0004](ADR-0004-shared-aws-account.md)) |
 | Region | `eu-west-1` |
 | Terraform roots | `terraform/bootstrap`, `terraform/envs/staging`, `terraform/envs/production` |
 | State | One encrypted, versioned S3 bucket per environment, S3 native locking |
 | Networks | `10.20.0.0/16` staging, `10.30.0.0/16` production |
-| Apply path | Reviewed PR, then a manual plan and apply per environment (see [RUNBOOK-aws.md](RUNBOOK-aws.md)) |
+| CI identity | GitHub Actions OIDC, one plan role and one apply role per environment |
+| Human access | `openflows-platform-admin` and `openflows-readonly`, both MFA only |
+| Apply path | Reviewed PR, then a plan and apply per environment (see [RUNBOOK-aws.md](RUNBOOK-aws.md)) |
 
 ## System Overview
 
@@ -77,11 +79,22 @@ flowchart LR
 | NAT gateways | VPC module | `terraform/modules/network` | Private subnet egress: one shared in staging, one per AZ in production |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
 | Certificate | ACM | `terraform/modules/dns` | Wildcard certificate for the HTTPS ingress, validated through the zone |
+| Permissions boundary | IAM policy | `terraform/bootstrap` | Ceiling on every OpenFlows role: IAM under `/openflows/` only, `openflows-*` buckets only, no changes to resources not tagged `Project=openflows` |
+| GitHub OIDC provider | IAM | `terraform/bootstrap` | Lets GitHub Actions assume AWS roles without stored keys |
+| `openflows-<env>-terraform-plan` | IAM role | `terraform/bootstrap` | Read-only plans from pull requests and `main` |
+| `openflows-<env>-terraform-apply` | IAM role | `terraform/bootstrap` | Applies: staging from `main`, production from `v*` tags |
+| `openflows-platform-admin`, `openflows-readonly` | IAM roles | `terraform/bootstrap` | Human break-glass and day-to-day access, MFA required |
 
 ## Key Decisions
 
 - **One account, isolated by state, network and identity.** See
-  [ADR-0004](ADR-0004-single-aws-account-environments.md).
+  [ADR-0004](ADR-0004-shared-aws-account.md).
+- **A permissions boundary on every role.** The account hosts other
+  projects, so OpenFlows roles are capped by a boundary rather than trusted
+  to have narrow policies. Apply roles hold `AdministratorAccess` inside it.
+- **CI trust pinned to refs, not GitHub environments.** Private repositories
+  on the current GitHub plan cannot protect environments, so the AWS trust
+  policy is the gate: production apply only from `v*` tags.
 - **One Terraform root per environment.** Each environment has its own state
   file, backend key and inputs, so a staging plan can never touch production
   resources. Shared code lives in `terraform/modules`.
@@ -115,18 +128,22 @@ principal access to that environment's state.
 
 ## Known Limitations
 
-- `aws_account_id` and each environment's `zone_name` are not committed yet;
-  they are passed at plan time until they are decided.
+- Each environment's `zone_name` is not committed yet; it is passed at plan
+  time until the domains are decided.
 - No CI job plans or applies these roots. Plans and applies are manual and
   follow the change-control process in the runbook.
 - Staging uses one NAT gateway, so an AZ outage cuts staging egress.
-- The account boundary is shared; see the consequences in ADR-0004.
+- The account is shared with other projects; see the consequences in ADR-0004.
+  Record changes in other projects' hosted zones cannot be blocked by tag, so
+  plan review is the control there.
+- Editing the permissions boundary needs a principal without it (the
+  bootstrap operator or the account root).
 
 ## Key File Locations
 
 | Path | What it holds |
 |---|---|
-| [`terraform/bootstrap/`](../terraform/bootstrap/) | State buckets and KMS keys |
+| [`terraform/bootstrap/`](../terraform/bootstrap/) | State buckets, KMS keys, permissions boundary, GitHub OIDC and IAM roles |
 | [`terraform/modules/network/`](../terraform/modules/network/) | VPC, subnets, NAT, flow logs |
 | [`terraform/modules/dns/`](../terraform/modules/dns/) | Hosted zone and certificate |
 | [`terraform/envs/staging/`](../terraform/envs/staging/) | Staging root and inputs |

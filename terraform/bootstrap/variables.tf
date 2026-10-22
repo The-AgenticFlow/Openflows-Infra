@@ -20,10 +20,30 @@ variable "environments" {
   default     = ["staging", "production"]
 }
 
-variable "state_admin_principal_arns" {
-  description = "Per environment, the IAM principal ARNs allowed to read and write that environment's state, beyond the account's own administrators. Deployer roles are added here once they exist."
-  type        = map(list(string))
-  default     = {}
+variable "github_repository" {
+  description = "GitHub repository (owner/name) whose Actions may assume the Terraform roles."
+  type        = string
+  default     = "The-AgenticFlow/Openflows-Infra"
+}
+
+variable "human_principal_arns" {
+  description = "IAM users or roles that may assume openflows-platform-admin and openflows-readonly (with MFA)."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.human_principal_arns) > 0
+    error_message = "At least one human principal is needed, or nobody can assume the admin role."
+  }
+}
+
+variable "state_break_glass_principal_arns" {
+  description = "Principals that keep access to every state bucket besides the environment's own roles. Without one, a bad bucket policy can lock everyone but the root user out."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.state_break_glass_principal_arns) > 0
+    error_message = "Keep at least one break-glass principal on the state buckets."
+  }
 }
 
 variable "noncurrent_version_retention_days" {

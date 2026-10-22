@@ -116,27 +116,31 @@ data "aws_iam_policy_document" "state" {
     }
   }
 
-  # Only when an allow-list is set for the environment: every principal outside
-  # it is denied, which keeps one environment's deployer out of the other's state.
-  dynamic "statement" {
-    for_each = length(lookup(var.state_admin_principal_arns, each.key, [])) > 0 ? [1] : []
-    content {
-      sid     = "DenyPrincipalsOutsideEnvironment"
-      effect  = "Deny"
-      actions = ["s3:*"]
-      resources = [
-        aws_s3_bucket.state[each.key].arn,
-        "${aws_s3_bucket.state[each.key].arn}/*",
-      ]
-      principals {
-        type        = "*"
-        identifiers = ["*"]
-      }
-      condition {
-        test     = "ArnNotLike"
-        variable = "aws:PrincipalArn"
-        values   = var.state_admin_principal_arns[each.key]
-      }
+  # Everyone outside this environment's roles, the admin role and break-glass is
+  # denied, which keeps the other environment's pipeline out of this state.
+  statement {
+    sid     = "DenyPrincipalsOutsideEnvironment"
+    effect  = "Deny"
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.state[each.key].arn,
+      "${aws_s3_bucket.state[each.key].arn}/*",
+    ]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "ArnNotLike"
+      variable = "aws:PrincipalArn"
+      values = concat(
+        [
+          aws_iam_role.terraform_plan[each.key].arn,
+          aws_iam_role.terraform_apply[each.key].arn,
+          aws_iam_role.platform_admin.arn,
+        ],
+        var.state_break_glass_principal_arns,
+      )
     }
   }
 }

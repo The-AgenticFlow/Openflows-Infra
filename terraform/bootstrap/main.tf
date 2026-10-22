@@ -8,6 +8,9 @@ locals {
     for scope in local.state_scopes : scope => "openflows-tfstate-${scope}-${var.aws_account_id}"
   }
 
+  # Built from the name (known at plan time) so policies render in the plan.
+  state_bucket_arns = { for scope, name in local.state_bucket_names : scope => "arn:aws:s3:::${name}" }
+
   # Principals allowed into each state bucket besides break-glass.
   state_bucket_principals = merge(
     {

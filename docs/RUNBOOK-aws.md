@@ -148,6 +148,25 @@ flowchart LR
 
    Deactivate the bootstrap user's access key once the pipeline runs.
 
+### Testing the permissions boundary
+
+`terraform/bootstrap/tests/` holds the access cases the boundary and the
+environment isolation must satisfy: what an apply role can never do (reach
+into the other environment, edit its own guard rails, change or relabel other
+projects' resources) and what it must still be able to do. Run them after any
+change to `boundary.tf` or `roles.tf`, before opening the PR. They use AWS's
+policy simulator, which evaluates the documents and changes nothing.
+
+```bash
+cd terraform/bootstrap
+terraform plan -out=tfplan
+tests/render-policies.sh tfplan
+python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
+```
+
+Every case must pass. Add a case for each new rule, both the deny it is meant
+to cause and an allow that must keep working.
+
 ### Break-glass access
 
 Use break-glass access only when the normal deployer path is broken or

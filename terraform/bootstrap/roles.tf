@@ -73,15 +73,15 @@ data "aws_iam_policy_document" "terraform_plan_state" {
 
   statement {
     actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.state[each.key].arn]
+    resources = [local.state_bucket_arns[each.key]]
   }
   statement {
     actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.state[each.key].arn}/*"]
+    resources = ["${local.state_bucket_arns[each.key]}/*"]
   }
   statement {
     actions   = ["s3:PutObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.state[each.key].arn}/*.tflock"]
+    resources = ["${local.state_bucket_arns[each.key]}/*.tflock"]
   }
   statement {
     actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
@@ -147,8 +147,8 @@ data "aws_iam_policy_document" "terraform_apply_environment" {
     not_resources = [
       "arn:aws:s3:::openflows-${each.key}-*",
       "arn:aws:s3:::openflows-${each.key}-*/*",
-      aws_s3_bucket.state[each.key].arn,
-      "${aws_s3_bucket.state[each.key].arn}/*",
+      local.state_bucket_arns[each.key],
+      "${local.state_bucket_arns[each.key]}/*",
     ]
   }
 

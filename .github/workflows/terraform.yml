@@ -118,7 +118,7 @@ jobs:
         working-directory: terraform/modules/eks
         run: |
           bash tests/render-policies.sh
-          for c in cni ebs-csi lbc; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
+          for c in cni ebs-csi lbc external-dns; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
 
   plan:
     if: github.event_name == 'pull_request' || github.event_name == 'schedule'

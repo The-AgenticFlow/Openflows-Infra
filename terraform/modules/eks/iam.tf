@@ -17,7 +17,7 @@ locals {
       ebs-csi                      = { managed_policy = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy", inline = null }
       aws-load-balancer-controller = { managed_policy = null, inline = file("${path.module}/policies/aws-load-balancer-controller.json") }
     },
-    local.external_dns ? { external-dns = { managed_policy = null, inline = data.aws_iam_policy_document.external_dns[0].json } } : {},
+    local.external_dns ? { external-dns = { managed_policy = null, inline = templatefile("${path.module}/policies/external-dns.json.tftpl", { zone_arn = "arn:${data.aws_partition.current.partition}:route53:::hostedzone/${var.zone_id}" }) } } : {},
   )
 }
 
@@ -51,19 +51,4 @@ resource "aws_eks_pod_identity_association" "aws_load_balancer_controller" {
   namespace       = "kube-system"
   service_account = "aws-load-balancer-controller"
   role_arn        = aws_iam_role.pod["aws-load-balancer-controller"].arn
-}
-
-# The three actions the ExternalDNS add-on docs name, on this environment's zone only.
-data "aws_iam_policy_document" "external_dns" {
-  count = local.external_dns ? 1 : 0
-
-  statement {
-    actions   = ["route53:ChangeResourceRecordSets", "route53:ListResourceRecordSets"]
-    resources = ["arn:${data.aws_partition.current.partition}:route53:::hostedzone/${var.zone_id}"]
-  }
-
-  statement {
-    actions   = ["route53:ListHostedZones"]
-    resources = ["*"]
-  }
 }

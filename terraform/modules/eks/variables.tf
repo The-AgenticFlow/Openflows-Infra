@@ -102,13 +102,13 @@ variable "log_retention_days" {
 }
 
 variable "zone_id" {
-  description = "Route 53 zone ExternalDNS manages. Empty skips ExternalDNS."
+  description = "Route 53 zone ExternalDNS manages; set together with zone_name."
   type        = string
   default     = ""
 }
 
 variable "zone_name" {
-  description = "Domain of zone_id, used as ExternalDNS's domain filter."
+  description = "Domain of zone_id, used as ExternalDNS's domain filter. Empty skips ExternalDNS."
   type        = string
   default     = ""
 }

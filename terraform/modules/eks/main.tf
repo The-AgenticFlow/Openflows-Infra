@@ -16,7 +16,8 @@ locals {
     external-dns           = "v0.23.0-eksbuild.2"
   }
 
-  external_dns = var.zone_id != ""
+  # Keyed on the name, known at plan time; zone_id is unknown while a new zone is created.
+  external_dns = var.zone_name != ""
 }
 
 # AWS-0039: EKS envelope-encrypts all API data by default (AWS-owned key, 1.28+).

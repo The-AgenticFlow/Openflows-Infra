@@ -68,8 +68,9 @@ flowchart LR
 ```
 
 Inside the staging VPC, the EKS control plane is reachable only from the
-private subnets. Nodes run in one private subnet, and every add-on that calls
-AWS gets its own role through Pod Identity:
+private subnets. Nodes run in one private subnet. The VPC CNI uses the node
+role (`AmazonEKS_CNI_Policy`); every other add-on that calls AWS gets its own
+role through Pod Identity:
 
 ```mermaid
 flowchart LR
@@ -77,6 +78,7 @@ flowchart LR
     TF["Apply role"] -->|"EKS APIs only"| API
     API --> NG["Managed node group, Spot, one AZ"]
     NG --> CNI["VPC CNI"]
+    CNI -->|node role| NR["openflows-staging-node"]
     NG --> EBS["EBS CSI driver"]
     NG --> DNS["ExternalDNS"]
     EBS -->|Pod Identity| EBSR["openflows-staging-ebs-csi"]

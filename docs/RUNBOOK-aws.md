@@ -31,10 +31,12 @@ Changes reach AWS only through [`.github/workflows/terraform.yml`](../.github/wo
    summary per environment (resource lines and totals only).
 2. A reviewer other than the author approves and merges it.
 3. The merge to `main` applies staging. The job plans, refuses any delete or
-   replace, then applies that same plan.
+   replace, then applies that same plan. A run whose commit is no longer the
+   tip of `main` skips its apply, so an older merge never reverts a newer one.
 4. To release to production, tag the `main` commit that staging already runs
    and push the tag: `git tag v<version> <commit>` then `git push origin v<version>`.
-   Only `v*` tags can assume the production apply role.
+   Only `v*` tags can assume the production apply role, and only the highest
+   `v*` tag applies; an older tag pushed later is skipped.
 5. A plan that shows an unexpected destroy or replace stops the change until
    the cause is understood. A deliberate removal needs its own reviewed change
    and a manual apply as the platform admin role.
@@ -94,10 +96,10 @@ administrator rights come off.
 flowchart LR
     U["Operator IAM user, admin, MFA session"] -->|"1. apply bootstrap"| BOOT["Buckets, boundary, OIDC provider, roles"]
     BOOT -->|"2. migrate state"| BB[("Bootstrap state bucket")]
-    BOOT -->|"3. role ARNs to repo variables"| GH["GitHub Actions"]
+    BOOT -->|"3. outputs to repo variables"| GH["GitHub Actions"]
     GH -->|"4. pipeline applies"| ENV["Staging, then production"]
-    ENV -->|"5. add SSO admin as break-glass"| BG["State bucket allow-lists"]
-    BG -->|"6. remove admin, deactivate key"| U2["Operator assumes roles only"]
+    ENV -->|"7a. add SSO admin as break-glass"| BG["State bucket allow-lists"]
+    BG -->|"7b. remove admin, deactivate key"| U2["Operator assumes roles only"]
 ```
 
 1. As an IAM user with administrator rights, in an MFA session (for
@@ -134,13 +136,25 @@ flowchart LR
    `terraform.tfstate.backup` and `tfplan`: they hold the full state. Rerun
    the IAM cases against the real roles with
    `python3 tests/iam_policy_tests.py tests/staging-apply-cases.json --principal <staging-apply-role-arn>`.
-4. Merge to `main` to let the pipeline apply staging, then push a `v*` tag to
+4. Set the repository variables the pipeline reads (Settings, Secrets and
+   variables, Actions, Variables). None of them is secret. Read each value
+   with `terraform output -json <output>` in `terraform/bootstrap`:
+
+   | Variable | Value |
+   |---|---|
+   | `AWS_ACCOUNT_ID` | The account ID, as in `terraform.tfvars` |
+   | `AWS_REGION` | `eu-west-1` |
+   | `AWS_ROLE_STAGING_PLAN`, `AWS_ROLE_PRODUCTION_PLAN` | `terraform_plan_role_arns`, per environment |
+   | `AWS_ROLE_STAGING_APPLY`, `AWS_ROLE_PRODUCTION_APPLY` | `terraform_apply_role_arns`, per environment |
+   | `TF_STATE_BUCKET_STAGING`, `TF_STATE_BUCKET_PRODUCTION` | `state_bucket_names`, per environment |
+   | `ZONE_NAME_STAGING`, `ZONE_NAME_PRODUCTION` | Optional. The environment's domain; leave unset to skip DNS |
+
+5. Merge to `main` to let the pipeline apply staging, then push a `v*` tag to
    apply production (see "Change control").
-5. Delegate each environment's domain: add the `name_servers` output as NS
+6. Delegate each environment's domain: add the `name_servers` output as NS
    records at the parent domain. Then set `wait_for_certificate_validation = true`
    and apply again so the certificate is issued.
-6. Hand over from the bootstrap user to the roles. Store the plan and apply
-   role ARNs from the bootstrap outputs as GitHub repository variables. Add
+7. Hand over from the bootstrap user to the roles. Add
    the account's SSO administrator role to `state_break_glass_principal_arns`
    and apply bootstrap: the buckets' explicit deny would otherwise block it
    too, leaving only the account root to recover a broken policy. Then remove

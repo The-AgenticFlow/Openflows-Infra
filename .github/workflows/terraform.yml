@@ -106,7 +106,8 @@ jobs:
         working-directory: terraform/envs/${{ matrix.environment }}
         env:
           STATE_BUCKET: ${{ matrix.environment == 'staging' && vars.TF_STATE_BUCKET_STAGING || vars.TF_STATE_BUCKET_PRODUCTION }}
-          ZONE_NAME: ${{ matrix.environment == 'staging' && vars.ZONE_NAME_STAGING || vars.ZONE_NAME_PRODUCTION }}
+          # Indexed, not `a && b || c`: an empty ZONE_NAME_* is valid and must not fall through to the other environment.
+          ZONE_NAME: ${{ vars[format('ZONE_NAME_{0}', matrix.environment == 'staging' && 'STAGING' || 'PRODUCTION')] }}
         run: |
           terraform init -input=false -backend-config="bucket=${STATE_BUCKET}"
           set +e
@@ -155,26 +156,47 @@ jobs:
     env:
       ENVIRONMENT: ${{ github.ref_type == 'tag' && 'production' || 'staging' }}
     steps:
+      # Runs queue here in any order once checks pass; an older commit must not
+      # apply after a newer one and silently revert it.
+      - name: Skip superseded runs
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            newest="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v" --paginate --jq '.[].ref' | sed 's#^refs/tags/##' | sort -V | tail -1)"
+            current="$([ "$newest" = "$GITHUB_REF_NAME" ] && echo true || echo false)"
+          else
+            tip="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+            current="$([ "$tip" = "$GITHUB_SHA" ] && echo true || echo false)"
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          [ "$current" = true ] || echo "::notice::Skipping apply: ${GITHUB_REF_NAME} at ${GITHUB_SHA} is no longer the newest; a newer run applies it."
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.latest.outputs.current == 'true'
         with:
           persist-credentials: false
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        if: steps.latest.outputs.current == 'true'
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        if: steps.latest.outputs.current == 'true'
         with:
           role-to-assume: ${{ github.ref_type == 'tag' && vars.AWS_ROLE_PRODUCTION_APPLY || vars.AWS_ROLE_STAGING_APPLY }}
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: apply-${{ github.run_id }}
 
       - name: terraform plan
+        if: steps.latest.outputs.current == 'true'
         working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         env:
           STATE_BUCKET: ${{ github.ref_type == 'tag' && vars.TF_STATE_BUCKET_PRODUCTION || vars.TF_STATE_BUCKET_STAGING }}
-          ZONE_NAME: ${{ github.ref_type == 'tag' && vars.ZONE_NAME_PRODUCTION || vars.ZONE_NAME_STAGING }}
+          ZONE_NAME: ${{ vars[format('ZONE_NAME_{0}', github.ref_type == 'tag' && 'PRODUCTION' || 'STAGING')] }}
         run: |
           terraform init -input=false -backend-config="bucket=${STATE_BUCKET}"
           terraform plan -input=false -lock-timeout=5m -out=tfplan -var "zone_name=${ZONE_NAME}" >/dev/null
@@ -182,6 +204,7 @@ jobs:
 
       # Deletes and replacements need a deliberate, reviewed change, never a surprise.
       - name: Refuse destroys and replacements
+        if: steps.latest.outputs.current == 'true'
         working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: |
           destroys="$(terraform show -json tfplan | jq -r '[.resource_changes[] | select(.change.actions | index("delete")) | .address] | join(", ")')"
@@ -191,5 +214,6 @@ jobs:
           fi
 
       - name: terraform apply
+        if: steps.latest.outputs.current == 'true'
         working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: terraform apply -input=false -lock-timeout=5m tfplan

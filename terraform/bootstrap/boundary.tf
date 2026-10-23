@@ -44,8 +44,12 @@ locals {
     "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
     "secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
     "ssm:GetParameter*", "ssm:PutParameter", "ssm:DeleteParameter*",
-    "logs:DeleteLogGroup", "logs:PutRetentionPolicy",
   ]
+
+  # Decided by name, not tags: retention is set right after the group is
+  # created, before IAM sees its tags. OpenFlows log groups live under /openflows/.
+  log_group_change_actions = ["logs:DeleteLogGroup", "logs:PutRetentionPolicy"]
+  log_group_arn_prefix     = "arn:aws:logs:*:${var.aws_account_id}:log-group:/openflows"
 
   # Tag writes, which could otherwise relabel another project's resource as ours.
   tag_write_actions = [
@@ -127,6 +131,19 @@ data "aws_iam_policy_document" "boundary" {
     effect    = "Deny"
     actions   = local.protected_change_actions
     resources = ["*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["openflows"]
+    }
+  }
+
+  # Log groups outside /openflows/ (which predate it) still need the project tag.
+  statement {
+    sid           = "DenyLogGroupChangesOutsideOpenflows"
+    effect        = "Deny"
+    actions       = local.log_group_change_actions
+    not_resources = ["${local.log_group_arn_prefix}/*"]
     condition {
       test     = "StringNotEquals"
       variable = "aws:ResourceTag/Project"

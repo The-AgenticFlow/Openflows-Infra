@@ -237,8 +237,9 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 
 ## Monitoring & Alerts
 
-- VPC flow logs are in CloudWatch Logs, in the log group the VPC module
-  creates for each environment.
+- VPC flow logs are in CloudWatch Logs, in `/openflows/<env>/vpc-flow-log/<vpc-id>`.
+  Name every new OpenFlows log group under `/openflows/<env>/`: the guard
+  rails decide log group retention and deletion by that name, not by tags.
 - No alerts are defined on the foundation yet.
 - The nightly `Terraform` workflow run plans both environments and fails on
   drift: a red nightly run means AWS no longer matches `main`. Read its plan
@@ -252,7 +253,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |
 | `AccessDenied` on the state bucket | Principal is not one of the environment's roles or a break-glass principal | Use the environment's role, or add the principal to `state_break_glass_principal_arns` and apply bootstrap |
 | `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, a resource not tagged `Project=openflows`, or a bootstrap-managed role | Name and tag the resource as OpenFlows; for bootstrap changes, apply as a principal without the boundary |
-| `AccessDenied ... explicit deny in an identity-based policy` from an apply role | The resource, IAM path or bucket belongs to the other environment | Tag the resource with the right `Environment`, put roles under `/openflows/<env>/`, name buckets `openflows-<env>-*` |
+| `AccessDenied ... explicit deny in an identity-based policy` from an apply role | The resource, IAM path or bucket belongs to the other environment, or a new log group is named outside `/openflows/<env>/` | Tag the resource with the right `Environment`, put roles under `/openflows/<env>/`, name buckets `openflows-<env>-*` |
 | GitHub Actions `Not authorized to perform sts:AssumeRoleWithWebIdentity` | The job runs from a ref the role does not trust, sets `environment:`, or the repository's OIDC subject prefix changed | Plans: pull requests or `main`. Staging apply: `main`. Production apply: a `v*` tag. Do not set `environment:` on these jobs. Compare `sub_claim_prefix` from `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` with `github_oidc_subject_prefix` in the bootstrap |
 | Apply hangs on `aws_acm_certificate_validation` | The parent domain does not delegate to the zone yet | Add the NS records, or set `wait_for_certificate_validation = false` |
 

@@ -164,6 +164,18 @@ data "aws_iam_policy_document" "terraform_apply_environment" {
     }
   }
 
+  statement {
+    sid           = "DenyLogGroupChangesOutsideEnvironment"
+    effect        = "Deny"
+    actions       = local.log_group_change_actions
+    not_resources = ["${local.log_group_arn_prefix}/${each.key}/*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:ResourceTag/Environment"
+      values   = [each.key]
+    }
+  }
+
   # New resources must carry this environment's tag, never the other one.
   statement {
     sid       = "DenyTaggingAsOtherEnvironment"

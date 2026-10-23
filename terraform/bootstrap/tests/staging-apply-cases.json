@@ -285,6 +285,50 @@
       "action": "ssm:GetParameter",
       "resource": "arn:aws:ssm:eu-west-1:686255958454:parameter/aws/service/other-project-secret",
       "expect": "deny"
+    },
+    {
+      "name": "must work: register targets in a staging target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/k8s-staging/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot register targets in another project's target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot deregister another project's targets",
+      "action": "elasticloadbalancing:DeregisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot add a listener to another project's load balancer",
+      "action": "elasticloadbalancing:CreateListener",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot swap another project's load balancer security groups",
+      "action": "elasticloadbalancing:SetSecurityGroups",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "sideways: cannot register targets in a production target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/k8s-production/0123456789abcdef",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
     }
   ]
 }

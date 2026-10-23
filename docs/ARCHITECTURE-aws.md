@@ -15,6 +15,7 @@ services build on top of it.
 | Terraform roots | `terraform/bootstrap`, `terraform/envs/staging`, `terraform/envs/production` |
 | State | One encrypted, versioned S3 bucket per environment and one for the bootstrap, S3 native locking |
 | Networks | `10.20.0.0/16` staging, `10.30.0.0/16` production |
+| Domains | `trial.openflows.dev` staging, `app.openflows.dev` production |
 | CI identity | GitHub Actions OIDC, one plan role and one apply role per environment |
 | Human access | `openflows-platform-admin` and `openflows-readonly`, both MFA only |
 | Apply path | GitHub Actions: plan on pull requests, staging on `main`, production on `v*` tags |
@@ -237,9 +238,9 @@ own bucket admits only the platform admin role and break-glass.
 
 ## Known Limitations
 
-- No domains are decided yet. Until `ZONE_NAME_STAGING` and
-  `ZONE_NAME_PRODUCTION` are set as repository variables, the environments
-  have no hosted zone or certificate.
+- Each environment's zone only works once the parent `openflows.dev` zone
+  delegates to it with NS records. That parent zone lives in the Cloudflare
+  account that registered the domain, outside this repository.
 - The org's GitHub plan cannot protect environments or branches on this private
   repository, so production is gated by the release tag and the AWS trust
   policy, not by a required reviewer.

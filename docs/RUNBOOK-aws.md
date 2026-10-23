@@ -153,8 +153,12 @@ flowchart LR
 5. Merge to `main` to let the pipeline apply staging, then push a `v*` tag to
    apply production (see "Change control").
 6. Delegate each environment's domain: add the `name_servers` output as NS
-   records at the parent domain. Then set `wait_for_certificate_validation = true`
-   and apply again so the certificate is issued.
+   records, named after the subdomain, in the parent `openflows.dev` zone.
+   The domain is registered with Cloudflare Registrar, so only the zone in the
+   registering Cloudflare account is live; a zone for `openflows.dev` in any
+   other account stays Pending and its records are never served. Confirm with
+   `dig +short NS <domain> @1.1.1.1`, then set `wait_for_certificate_validation = true`
+   for the environment and merge, so the apply checks the certificate is issued.
 7. Hand over from the bootstrap user to the roles. Add
    the account's SSO administrator role to `state_break_glass_principal_arns`
    and apply bootstrap: the buckets' explicit deny would otherwise block it
@@ -256,6 +260,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | `AccessDenied ... explicit deny in an identity-based policy` from an apply role | The resource, IAM path or bucket belongs to the other environment, or a new log group is named outside `/openflows/<env>/` | Tag the resource with the right `Environment`, put roles under `/openflows/<env>/`, name buckets `openflows-<env>-*` |
 | GitHub Actions `Not authorized to perform sts:AssumeRoleWithWebIdentity` | The job runs from a ref the role does not trust, sets `environment:`, or the repository's OIDC subject prefix changed | Plans: pull requests or `main`. Staging apply: `main`. Production apply: a `v*` tag. Do not set `environment:` on these jobs. Compare `sub_claim_prefix` from `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` with `github_oidc_subject_prefix` in the bootstrap |
 | Apply hangs on `aws_acm_certificate_validation` | The parent domain does not delegate to the zone yet | Add the NS records, or set `wait_for_certificate_validation = false` |
+| NS records added in Cloudflare but `dig NS <domain> @1.1.1.1` returns nothing | They went into a Pending `openflows.dev` zone in an account that did not register the domain | Add them in the account whose zone is Active, the one listing the domain under Domain Registration |
 
 ## Rollback Procedure
 

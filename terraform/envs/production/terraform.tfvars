@@ -1,5 +1,5 @@
-# Non-secret inputs for production. zone_name is passed at
-# plan time (docs/RUNBOOK-aws.md) until the domain is decided and committed here.
+# Non-secret inputs for production. zone_name comes from the ZONE_NAME_PRODUCTION
+# repository variable (docs/RUNBOOK-aws.md, "Change control").
 
 aws_account_id = "686255958454"
 

@@ -153,10 +153,10 @@ data "aws_iam_policy_document" "terraform_apply_environment" {
   }
 
   statement {
-    sid       = "DenyChangesToOtherEnvironment"
-    effect    = "Deny"
-    actions   = local.protected_change_actions
-    resources = ["*"]
+    sid           = "DenyChangesToOtherEnvironment"
+    effect        = "Deny"
+    actions       = local.protected_change_actions
+    not_resources = [local.aws_public_parameters]
     condition {
       test     = "StringNotEquals"
       variable = "aws:ResourceTag/Environment"

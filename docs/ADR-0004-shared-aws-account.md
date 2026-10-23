@@ -32,7 +32,8 @@ from each other and from the other projects, comes from layers Terraform owns:
   another project's resource cannot be relabelled and then changed.
   Log groups are the exception to tag checks: AWS sets a new group's
   retention before IAM sees its tags, so OpenFlows log groups are named
-  `/openflows/<env>/...` and retention and deletion are decided by that name.
+  `/openflows/<env>/...` (or `/aws/eks/openflows-<env>/...`, the name EKS
+  requires) and retention and deletion are decided by that name.
 - **State:** one S3 state bucket and one KMS key per environment, and one
   for the bootstrap. Each bucket accepts only KMS-encrypted uploads and denies
   every principal except its own roles and a break-glass principal.

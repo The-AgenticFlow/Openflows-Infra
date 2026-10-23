@@ -228,6 +228,51 @@
       "context": {
         "aws:ResourceTag/Project": "other"
       }
+    },
+    {
+      "name": "must work: set retention on the staging EKS log group before its tags are visible",
+      "action": "logs:PutRetentionPolicy",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/aws/eks/openflows-staging/cluster",
+      "expect": "allow"
+    },
+    {
+      "name": "sideways: cannot set retention on the production EKS log group",
+      "action": "logs:PutRetentionPolicy",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/aws/eks/openflows-production/cluster",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot delete another project's EKS log group",
+      "action": "logs:DeleteLogGroup",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/aws/eks/other-project/cluster",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: create the EKS node group service-linked role",
+      "action": "iam:CreateServiceLinkedRole",
+      "resource": "arn:aws:iam::686255958454:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup",
+      "expect": "allow",
+      "context": {
+        "iam:AWSServiceName": "eks-nodegroup.amazonaws.com"
+      }
+    },
+    {
+      "name": "must work: pass a staging role to EKS",
+      "action": "iam:PassRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/openflows-staging-cluster",
+      "expect": "allow",
+      "context": {
+        "iam:PassedToService": "eks.amazonaws.com"
+      }
+    },
+    {
+      "name": "sideways: cannot pass a production role to EKS",
+      "action": "iam:PassRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/production/openflows-production-cluster",
+      "expect": "deny",
+      "context": {
+        "iam:PassedToService": "eks.amazonaws.com"
+      }
     }
   ]
 }

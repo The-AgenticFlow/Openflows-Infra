@@ -32,6 +32,7 @@ locals {
   # Changes and secret reads that must only ever hit OpenFlows resources (and,
   # for apply roles, only their own environment's).
   protected_change_actions = [
+    "ec2:Assign*", "ec2:Unassign*",
     "ec2:Associate*", "ec2:Attach*", "ec2:Authorize*", "ec2:CreateNetworkAclEntry",
     "ec2:CreateRoute", "ec2:Delete*", "ec2:Detach*", "ec2:Disassociate*", "ec2:Modify*",
     "ec2:Reboot*", "ec2:Replace*", "ec2:Revoke*", "ec2:Stop*", "ec2:Terminate*",

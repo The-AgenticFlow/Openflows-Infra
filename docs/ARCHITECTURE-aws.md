@@ -195,7 +195,7 @@ flowchart TD
   policy is the gate: production apply only from `v*` tags.
 - **Environments are isolated from each other, not only from other projects.**
   Each apply role can only change resources tagged with its own `Environment`,
-  only change log groups under `/openflows/<env>/`, only write IAM under `/openflows/<env>/`, and only use `openflows-<env>-*`
+  only change log groups under `/openflows/<env>/` or `/aws/eks/openflows-<env>/`, only write IAM under `/openflows/<env>/`, and only use `openflows-<env>-*`
   buckets and its own state bucket.
 - **The bootstrap owns the shared IAM.** Its roles, the GitHub OIDC provider
   and the boundary cannot be changed by any role that carries the boundary,

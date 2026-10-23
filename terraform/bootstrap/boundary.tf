@@ -47,9 +47,9 @@ locals {
   ]
 
   # Decided by name, not tags: retention is set right after the group is
-  # created, before IAM sees its tags. OpenFlows log groups live under /openflows/.
+  # created, before IAM sees its tags. EKS fixes its own name, /aws/eks/<cluster>/.
   log_group_change_actions = ["logs:DeleteLogGroup", "logs:PutRetentionPolicy"]
-  log_group_arn_prefix     = "arn:aws:logs:*:${var.aws_account_id}:log-group:/openflows"
+  log_group_arn            = "arn:aws:logs:*:${var.aws_account_id}:log-group"
 
   # Tag writes, which could otherwise relabel another project's resource as ours.
   tag_write_actions = [
@@ -143,7 +143,7 @@ data "aws_iam_policy_document" "boundary" {
     sid           = "DenyLogGroupChangesOutsideOpenflows"
     effect        = "Deny"
     actions       = local.log_group_change_actions
-    not_resources = ["${local.log_group_arn_prefix}/*"]
+    not_resources = ["${local.log_group_arn}:/openflows/*", "${local.log_group_arn}:/aws/eks/openflows-*"]
     condition {
       test     = "StringNotEquals"
       variable = "aws:ResourceTag/Project"

@@ -158,7 +158,8 @@ flowchart LR
    registering Cloudflare account is live; a zone for `openflows.dev` in any
    other account stays Pending and its records are never served. Confirm with
    `dig +short NS <domain> @1.1.1.1`, then set `wait_for_certificate_validation = true`
-   for the environment and merge, so the apply checks the certificate is issued.
+   for the environment and merge. For production, also push a new `v*` tag,
+   so the apply checks the certificate is issued.
 7. Hand over from the bootstrap user to the roles. Add
    the account's SSO administrator role to `state_break_glass_principal_arns`
    and apply bootstrap: the buckets' explicit deny would otherwise block it

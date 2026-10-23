@@ -67,8 +67,36 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: checks-${{ github.run_id }}
 
-      - name: IAM cases against the live staging apply role
+      # The bootstrap is applied by hand after merge, so a change to it is judged
+      # on the policies it would apply, not on the live roles that predate it.
+      - name: Does this change touch the bootstrap?
+        id: bootstrap
         if: github.ref_type != 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          changed="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE}...${HEAD}" --jq '.files[].filename')"
+          if printf '%s\n' "$changed" | grep -q '^terraform/bootstrap/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # No state: every policy renders as a create, which is all the cases need.
+      - name: IAM cases against the policies this change would apply
+        if: steps.bootstrap.outputs.changed == 'true'
+        working-directory: terraform/bootstrap
+        run: |
+          printf 'terraform {\n  backend "local" {}\n}\n' > backend_override.tf
+          terraform init -input=false -reconfigure >/dev/null
+          terraform plan -input=false -lock=false -refresh=false -out="${RUNNER_TEMP}/bootstrap.tfplan" >/dev/null
+          bash tests/render-policies.sh "${RUNNER_TEMP}/bootstrap.tfplan"
+          python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
+
+      - name: IAM cases against the live staging apply role
+        if: steps.bootstrap.outputs.changed == 'false'
         working-directory: terraform/bootstrap
         run: >-
           python3 tests/iam_policy_tests.py tests/staging-apply-cases.json

@@ -329,6 +329,74 @@
         "aws:ResourceTag/Project": "openflows",
         "aws:ResourceTag/Environment": "production"
       }
+    },
+    {
+      "name": "must work: add a listener to a staging load balancer",
+      "action": "elasticloadbalancing:CreateListener",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/k8s-staging/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: swap security groups on a staging load balancer",
+      "action": "elasticloadbalancing:SetSecurityGroups",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/k8s-staging/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: add a rule to a staging listener",
+      "action": "elasticloadbalancing:CreateRule",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/k8s-staging/0123456789abcdef/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot add a rule to another project's listener",
+      "action": "elasticloadbalancing:CreateRule",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/other/0123456789abcdef/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: add a certificate to a staging listener",
+      "action": "elasticloadbalancing:AddListenerCertificates",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/k8s-staging/0123456789abcdef/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot add a certificate to another project's listener",
+      "action": "elasticloadbalancing:AddListenerCertificates",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/other/0123456789abcdef/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: remove a certificate from a staging listener",
+      "action": "elasticloadbalancing:RemoveListenerCertificates",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/k8s-staging/0123456789abcdef/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot remove a certificate from another project's listener",
+      "action": "elasticloadbalancing:RemoveListenerCertificates",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/other/0123456789abcdef/0123456789abcdef",
+      "expect": "deny"
     }
   ]
 }

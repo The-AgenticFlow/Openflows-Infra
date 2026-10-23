@@ -105,11 +105,13 @@ flowchart LR
    ```
 
 2. Move the state into the bootstrap bucket: remove the override, then
-   migrate to the committed S3 backend.
+   migrate to the committed S3 backend. Answer the copy prompt yourself: if
+   Terraform reports that the bucket already holds state, stop and compare
+   the two before overwriting anything.
 
    ```bash
    rm backend_override.tf
-   terraform init -migrate-state -force-copy \
+   terraform init -migrate-state \
      -backend-config="bucket=openflows-tfstate-bootstrap-<account-id>"
    terraform plan    # must report: No changes
    ```

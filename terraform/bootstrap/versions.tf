@@ -1,5 +1,5 @@
-# Bootstrap root: creates the remote state buckets every other root uses.
-# It starts on local state and is migrated into the production state bucket
+# Bootstrap root: creates the state buckets, boundary and roles every other root
+# uses. Its own state lives in the bootstrap state bucket it creates
 # (see docs/RUNBOOK-aws.md, "Bootstrap").
 
 terraform {
@@ -11,6 +11,14 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.70"
     }
+  }
+
+  # Partial config: pass the bucket at init time. No `encrypt` flag: it would
+  # force AES256 instead of the bucket's KMS key.
+  backend "s3" {
+    key          = "terraform.tfstate"
+    region       = "eu-west-1"
+    use_lockfile = true
   }
 }
 

@@ -397,6 +397,68 @@
       "action": "elasticloadbalancing:RemoveListenerCertificates",
       "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:listener/app/other/0123456789abcdef/0123456789abcdef",
       "expect": "deny"
+    },
+    {
+      "name": "must work: assign IPs on a staging network interface",
+      "action": "ec2:AssignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot unassign IPs from another project's network interface",
+      "action": "ec2:UnassignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot assign IPs on another project's network interface",
+      "action": "ec2:AssignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "sideways: cannot unassign IPs from a production network interface",
+      "action": "ec2:UnassignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0cccccccccccccccc",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    },
+    {
+      "name": "outwards: cannot unassign IPs from another project's interface tagged staging",
+      "action": "ec2:UnassignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0dddddddddddddddd",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "other",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "sideways: cannot assign IPs on a production network interface",
+      "action": "ec2:AssignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0cccccccccccccccc",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    },
+    {
+      "name": "outwards: cannot assign IPs on another project's interface tagged staging",
+      "action": "ec2:AssignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0dddddddddddddddd",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "other",
+        "aws:ResourceTag/Environment": "staging"
+      }
     }
   ]
 }

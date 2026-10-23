@@ -42,6 +42,9 @@ from each other and from the other projects, comes from layers Terraform owns:
 - **Environments:** each apply role carries an extra deny that limits it to
   resources tagged with its own `Environment`, log groups under
   `/openflows/<env>/`, IAM under `/openflows/<env>/` and its own buckets.
+  Every other role an environment creates carries that environment's
+  `Environment` tag, and the boundary stops it changing or re-tagging
+  resources tagged with a different `Environment`.
 - **Identity:** GitHub Actions assumes per-environment roles through OIDC.
   Plan roles are read-only; staging applies only from `main`, production only
   from `v*` release tags. Humans assume `openflows-platform-admin` or

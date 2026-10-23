@@ -156,8 +156,8 @@ jobs:
     env:
       ENVIRONMENT: ${{ github.ref_type == 'tag' && 'production' || 'staging' }}
     steps:
-      # Runs queue here in any order once checks pass; an older commit must not
-      # apply after a newer one and silently revert it.
+      # Runs queue here in any order once checks pass. Skip only when a newer run
+      # will deploy: a later Terraform change on main, or a higher v* tag.
       - name: Skip superseded runs
         id: latest
         env:
@@ -167,11 +167,11 @@ jobs:
             newest="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v" --paginate --jq '.[].ref' | sed 's#^refs/tags/##' | sort -V | tail -1)"
             current="$([ "$newest" = "$GITHUB_REF_NAME" ] && echo true || echo false)"
           else
-            tip="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-            current="$([ "$tip" = "$GITHUB_SHA" ] && echo true || echo false)"
+            newer="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...main" --jq '.files[].filename' | grep -cE '^(terraform/|\.github/workflows/terraform\.yml$)' || true)"
+            current="$([ "$newer" -eq 0 ] && echo true || echo false)"
           fi
           echo "current=$current" >> "$GITHUB_OUTPUT"
-          [ "$current" = true ] || echo "::notice::Skipping apply: ${GITHUB_REF_NAME} at ${GITHUB_SHA} is no longer the newest; a newer run applies it."
+          [ "$current" = true ] || echo "::notice::Skipping apply: ${GITHUB_REF_NAME} at ${GITHUB_SHA} is superseded; a newer run deploys it."
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.latest.outputs.current == 'true'

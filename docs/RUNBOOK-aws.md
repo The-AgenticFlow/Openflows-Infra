@@ -31,8 +31,9 @@ Changes reach AWS only through [`.github/workflows/terraform.yml`](../.github/wo
    summary per environment (resource lines and totals only).
 2. A reviewer other than the author approves and merges it.
 3. The merge to `main` applies staging. The job plans, refuses any delete or
-   replace, then applies that same plan. A run whose commit is no longer the
-   tip of `main` skips its apply, so an older merge never reverts a newer one.
+   replace, then applies that same plan. A run skips its apply when a later
+   commit on `main` changes Terraform or this workflow, so an older merge
+   never reverts a newer one; a later docs-only commit does not cause a skip.
 4. To release to production, tag the `main` commit that staging already runs
    and push the tag: `git tag v<version> <commit>` then `git push origin v<version>`.
    Only `v*` tags can assume the production apply role, and only the highest

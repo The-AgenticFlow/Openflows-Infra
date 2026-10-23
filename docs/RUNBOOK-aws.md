@@ -205,6 +205,14 @@ to cause and an allow that must keep working. Once the roles exist, add
 `--principal <staging-apply-role-arn>` to test the live role's attached
 policies and boundary instead of the rendered files.
 
+CI does the same on every change. When the change touches
+`terraform/bootstrap/`, `checks` renders the policies from a plan without
+state (a local backend override and `-refresh=false`, so nothing is read from
+or written to the bootstrap bucket) and runs the cases against them, so a
+guard-rail change is judged before anyone applies it. Otherwise it runs the
+cases against the live staging apply role. Apply the bootstrap by hand after
+merging (bootstrap step 1, without the override).
+
 ### Break-glass access
 
 Use break-glass access only when the normal deployer path is broken or

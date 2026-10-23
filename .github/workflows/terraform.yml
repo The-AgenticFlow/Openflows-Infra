@@ -56,7 +56,8 @@ jobs:
           curl -sSfL -o sums.txt "${base}/trivy_${TRIVY_VERSION}_checksums.txt"
           grep " trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz$" sums.txt | sed "s/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz/trivy.tgz/" | sha256sum -c -
           tar xzf trivy.tgz trivy
-          ./trivy config --exit-code 1 --severity HIGH,CRITICAL terraform/
+          # Example manifests shipped inside downloaded modules are not ours.
+          ./trivy config --exit-code 1 --severity HIGH,CRITICAL --skip-dirs '**/.terraform/modules/*/examples' terraform/
 
       # The staging plan role trusts pull requests and main, not tags.
       - name: AWS credentials for the IAM cases
@@ -110,6 +111,14 @@ jobs:
           aws iam get-policy-version --policy-arn "$BOUNDARY_ARN" --version-id "$version" --query PolicyVersion.Document --output json > tests/rendered/boundary.json
           echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' > tests/rendered/admin.json
           python3 tests/iam_policy_tests.py tests/environment-role-cases.json
+
+      # The roles inside the cluster run under the live boundary too; tagging decides what they may touch.
+      - name: IAM cases for the cluster's in-cluster roles
+        if: github.ref_type != 'tag'
+        working-directory: terraform/modules/eks
+        run: |
+          bash tests/render-policies.sh
+          for c in cni ebs-csi lbc; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
 
   plan:
     if: github.event_name == 'pull_request' || github.event_name == 'schedule'

@@ -232,6 +232,45 @@ locked out, for example a bucket policy that denies everyone.
 > A break-glass session can reach both environments. Nothing done in it is
 > reviewed, so keep it short and bring the change back into Terraform.
 
+### Reaching the cluster
+
+The EKS API endpoint is private, so `kubectl` works only from inside the VPC.
+Assume `openflows-platform-admin` (cluster-admin) or `openflows-readonly`
+(view) in the AWS console, open the cluster `openflows-<env>`, choose
+**Connect**, and use the CloudShell VPC environment it starts. Then:
+
+```bash
+aws eks update-kubeconfig --name openflows-<env> --region eu-west-1
+kubectl get nodes
+```
+
+Access is granted only through EKS access entries in
+[`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
+no `aws-auth` ConfigMap.
+
+### Upgrading Kubernetes and add-ons
+
+1. List the default add-on versions for the target version:
+
+   ```bash
+   aws eks describe-addon-versions --kubernetes-version <v> --addon-name <name> \
+     --query 'addons[0].addonVersions[?compatibilities[0].defaultVersion==`true`].addonVersion'
+   ```
+
+2. In one pull request, bump `kubernetes_version` in the environment's
+   `terraform.tfvars` and every version in `local.addon_versions` in
+   [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf), plus
+   the Version Matrix.
+3. Merge for staging; the managed node group rolls its nodes to the new AMI.
+   Upgrade one minor version at a time.
+
+### Changing node size or count
+
+Edit `node_instance_types`, `node_desired_size`, `node_min_size` or
+`node_max_size` in the environment's `terraform.tfvars` and merge. Keep
+several instance types for Spot. No cluster autoscaler runs, so
+`node_desired_size` is the node count.
+
 ## Backup & Restore
 
 State buckets are versioned and keep superseded versions for 90 days. To
@@ -257,6 +296,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
   rails decide log group retention and deletion by that name, not by tags.
   EKS control-plane logs are the one exception, in `/aws/eks/openflows-<env>/cluster`,
   because EKS fixes that name.
+- EKS control plane audit and authenticator logs are in `/aws/eks/openflows-<env>/cluster`.
 - No alerts are defined on the foundation yet.
 - The nightly `Terraform` workflow run plans both environments and fails on
   drift: a red nightly run means AWS no longer matches `main`. Read its plan
@@ -267,6 +307,9 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
+| `kubectl` times out against the cluster | The endpoint is private | Use the CloudShell VPC environment from the cluster's **Connect** button |
+| Pods stuck `ContainerCreating` with `failed to assign an IP` or a volume that will not attach, and an `explicit deny in a permissions boundary` in CloudTrail | An ENI or volume was created without `Project` and `Environment` tags | Check the VPC CNI `ADDITIONAL_ENI_TAGS` and EBS CSI `extraVolumeTags` add-on settings; run the in-cluster IAM cases in `terraform/modules/eks/tests` |
+| A stateful pod stays `Pending` after a node replacement | Its EBS volume is in a different AZ from the new node | Staging nodes use one AZ for this reason; keep `node_az_count = 1` there |
 | `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |
 | `AccessDenied` on the state bucket | Principal is not one of the environment's roles or a break-glass principal | Use the environment's role, or add the principal to `state_break_glass_principal_arns` and apply bootstrap |
 | `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, a resource not tagged `Project=openflows`, or a bootstrap-managed role | Name and tag the resource as OpenFlows; for bootstrap changes, apply as a principal without the boundary |

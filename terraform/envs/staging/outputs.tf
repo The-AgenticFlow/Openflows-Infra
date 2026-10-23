@@ -32,3 +32,13 @@ output "certificate_arn" {
   description = "Wildcard ACM certificate for the HTTPS ingress."
   value       = one(module.dns[*].certificate_arn)
 }
+
+output "eks_cluster_name" {
+  description = "EKS cluster name."
+  value       = module.eks.cluster_name
+}
+
+output "aws_load_balancer_controller_role_arn" {
+  description = "Pod Identity role for the Load Balancer Controller."
+  value       = module.eks.aws_load_balancer_controller_role_arn
+}

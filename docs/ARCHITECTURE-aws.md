@@ -12,10 +12,10 @@ services build on top of it.
 | Environments | `staging`, `production` |
 | AWS account | `686255958454`, an organization member account shared with other projects (see [ADR-0004](ADR-0004-shared-aws-account.md)) |
 | Region | `eu-west-1` |
-| Terraform roots | `terraform/bootstrap`, `terraform/envs/staging`, `terraform/envs/production` |
 | State | One encrypted, versioned S3 bucket per environment and one for the bootstrap, S3 native locking |
 | Networks | `10.20.0.0/16` staging, `10.30.0.0/16` production |
 | Domains | `trial.openflows.dev` staging, `app.openflows.dev` production |
+| Kubernetes | EKS cluster `openflows-staging`, private API endpoint; production not built yet |
 | CI identity | GitHub Actions OIDC, one plan role and one apply role per environment |
 | Human access | `openflows-platform-admin` and `openflows-readonly`, both MFA only |
 | Apply path | GitHub Actions: plan on pull requests, staging on `main`, production on `v*` tags |
@@ -40,7 +40,7 @@ flowchart TB
             PB[("Production state bucket")]
         end
         subgraph Stg["terraform/envs/staging"]
-            SNET["VPC 10.20.0.0/16, Route 53 zone, certificate"]
+            SNET["VPC 10.20.0.0/16, Route 53 zone, certificate, EKS"]
         end
         subgraph Prd["terraform/envs/production"]
             PNET["VPC 10.30.0.0/16, Route 53 zone, certificate"]
@@ -67,16 +67,37 @@ flowchart LR
     ALB -.-> Priv
 ```
 
+Inside the staging VPC, the EKS control plane is reachable only from the
+private subnets. Nodes run in one private subnet, and every add-on that calls
+AWS gets its own role through Pod Identity:
+
+```mermaid
+flowchart LR
+    CS["CloudShell VPC environment"] -->|"kubectl, access entry"| API["EKS API, private endpoint"]
+    TF["Apply role"] -->|"EKS APIs only"| API
+    API --> NG["Managed node group, Spot, one AZ"]
+    NG --> CNI["VPC CNI"]
+    NG --> EBS["EBS CSI driver"]
+    NG --> DNS["ExternalDNS"]
+    EBS -->|Pod Identity| EBSR["openflows-staging-ebs-csi"]
+    DNS -->|Pod Identity| DNSR["openflows-staging-external-dns"]
+    DNSR --> ZONE[("Route 53 zone")]
+```
+
 ## Version Matrix
 
 | Component | Version | Pinned in | Upgrade notes |
 |---|---|---|---|
 | Terraform | `>= 1.11` | [`terraform/envs/staging/versions.tf`](../terraform/envs/staging/versions.tf) and the other roots | 1.11 is the first release with GA S3 native state locking (`use_lockfile`) |
-| AWS provider | `~> 6.70` | [`terraform/envs/staging/versions.tf`](../terraform/envs/staging/versions.tf), [`terraform/bootstrap/versions.tf`](../terraform/bootstrap/versions.tf) | Modules require `>= 6.28`, the floor of the pinned VPC module |
+| AWS provider | `~> 6.70` | [`terraform/envs/staging/versions.tf`](../terraform/envs/staging/versions.tf), [`terraform/bootstrap/versions.tf`](../terraform/bootstrap/versions.tf) | Modules require `>= 6.59`, the floor of the pinned EKS module |
 | Terraform CLI in CI | `1.15.8` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Keep at or above the `required_version` floor |
 | Trivy in CI | `0.76.1` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Release tarball verified against its checksums file |
 | `actions/checkout`, `hashicorp/setup-terraform`, `aws-actions/configure-aws-credentials` | `v7.0.1`, `v4.0.1`, `v6.3.0` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Pinned by commit SHA; check inputs in the new version's `action.yml` before bumping |
 | `terraform-aws-modules/vpc/aws` | `6.7.3` | [`terraform/modules/network/main.tf`](../terraform/modules/network/main.tf) | Read the module changelog before bumping; input names change across majors |
+| `terraform-aws-modules/eks/aws` | `21.29.0` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Recheck what it creates against the boundary before bumping (IAM paths, tags, log group name) |
+| Kubernetes (EKS) | `1.37` | [`terraform/envs/staging/terraform.tfvars`](../terraform/envs/staging/terraform.tfvars) | Standard support ends 2027-12-01; bump the add-on versions in the same change |
+| EKS add-ons | `vpc-cni` `v1.22.4-eksbuild.3`, `coredns` `v1.14.7-eksbuild.11`, `kube-proxy` `v1.37.0-eksbuild.22`, `eks-pod-identity-agent` `v1.3.10-eksbuild.3`, `aws-ebs-csi-driver` `v1.67.1-eksbuild.1`, `metrics-server` `v0.9.0-eksbuild.13`, `external-dns` `v0.23.0-eksbuild.2` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Each is the default for the Kubernetes version; list with `aws eks describe-addon-versions --kubernetes-version <v>` |
+| AWS Load Balancer Controller IAM policy | `v3.6.1` | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs |
 
 ## Components
 
@@ -93,6 +114,10 @@ flowchart LR
 | `openflows-<env>-terraform-plan` | IAM role | `terraform/bootstrap` | Read-only plans from pull requests and `main` |
 | `openflows-<env>-terraform-apply` | IAM role | `terraform/bootstrap` | Applies: staging from `main`, production from `v*` tags; limited to its own environment's tags, IAM path and buckets |
 | `openflows-platform-admin`, `openflows-readonly` | IAM roles | `terraform/bootstrap` | Human break-glass and day-to-day access, MFA required |
+| EKS cluster | EKS module | `terraform/modules/eks` | Private API endpoint, access entries only (cluster-admin for platform admin, view for read-only), control plane audit and authenticator logs |
+| Node group | EKS managed node group | `terraform/modules/eks` | x86 nodes on AL2023 with IMDSv2, hop limit 1, encrypted gp3 root volumes; launch template tags instances, volumes and ENIs |
+| Add-ons | EKS add-ons | `terraform/modules/eks` | VPC CNI, CoreDNS, kube-proxy, Pod Identity agent, EBS CSI driver (default StorageClass), metrics-server, ExternalDNS |
+| `openflows-<env>-ebs-csi`, `-external-dns`, `-aws-load-balancer-controller` | IAM roles | `terraform/modules/eks` | Pod Identity roles; ExternalDNS may only change the environment's zone |
 
 ## Access Model
 
@@ -214,6 +239,25 @@ flowchart TD
 - **Certificate validation waits are opt-in.** ACM can only validate after
   the parent domain delegates to the new zone, so `wait_for_certificate_validation`
   stays `false` until delegation is in place.
+- **The cluster API is private.** Terraform needs only EKS APIs (cluster,
+  access entries, add-ons, Pod Identity); people use CloudShell's VPC
+  environment; in-cluster changes go through Argo CD.
+- **Managed node groups, not Auto Mode.** Auto Mode launches and deletes
+  instances and load balancers through our cluster role, which carries the
+  boundary, and tags them only `eks:*`. Managed node groups act through an
+  AWS service-linked role.
+- **Everything the cluster creates is tagged at creation.** The boundary
+  decides by `Project` and `Environment` tags, so the launch template, the VPC
+  CNI (`ADDITIONAL_ENI_TAGS`), the EBS CSI driver (`extraVolumeTags`) and the
+  Load Balancer Controller (`defaultTags`) all set them in the create call.
+- **Pod Identity, not IRSA.** Associations are EKS API objects and need no
+  per-cluster OIDC provider.
+- **No customer KMS key for the cluster.** EKS envelope-encrypts all API data
+  with an AWS-owned key on 1.28 and later.
+- **Staging nodes are Spot, in one AZ.** Spot cuts node cost; one AZ keeps EBS
+  volumes attachable when a node is replaced. Several instance types improve
+  Spot availability; burstable types are avoided because unlimited CPU credits
+  bill extra.
 
 ## Networking
 
@@ -260,6 +304,11 @@ own bucket admits only the platform admin role and break-glass.
 - The boundary is close to IAM's 6,144-character limit for managed policies
   (about 6,120). The next rule added there will need the boundary split, for
   example into one boundary per environment.
+- Staging runs one Spot node in one AZ: a Spot reclaim or AZ outage takes
+  staging down until a replacement node starts. No cluster autoscaler runs, so
+  the node count is whatever `node_desired_size` says.
+- The Load Balancer Controller's role is ready, but the controller and Argo CD
+  are not installed yet, so there is no HTTPS ingress.
 
 ## Key File Locations
 
@@ -268,5 +317,6 @@ own bucket admits only the platform admin role and break-glass.
 | [`terraform/bootstrap/`](../terraform/bootstrap/) | State buckets, KMS keys, permissions boundary, GitHub OIDC and IAM roles |
 | [`terraform/modules/network/`](../terraform/modules/network/) | VPC, subnets, NAT, flow logs |
 | [`terraform/modules/dns/`](../terraform/modules/dns/) | Hosted zone and certificate |
+| [`terraform/modules/eks/`](../terraform/modules/eks/) | EKS cluster, node group, add-ons, Pod Identity roles, and the IAM cases for the in-cluster roles |
 | [`terraform/envs/staging/`](../terraform/envs/staging/) | Staging root and inputs |
 | [`terraform/envs/production/`](../terraform/envs/production/) | Production root and inputs |

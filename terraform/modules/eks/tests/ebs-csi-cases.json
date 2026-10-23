@@ -1,0 +1,56 @@
+{
+  "identity_policies": [
+    "rendered/ebs-csi.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "must work: create a volume tagged at creation",
+      "action": "ec2:CreateVolume",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:volume/*",
+      "expect": "allow",
+      "context": {
+        "aws:RequestTag/Project": "openflows",
+        "aws:RequestTag/Environment": "staging",
+        "aws:RequestTag/ebs.csi.aws.com/cluster": "true"
+      }
+    },
+    {
+      "name": "must work: attach a tagged volume",
+      "action": "ec2:AttachVolume",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:volume/vol-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: attach to a node the launch template tagged",
+      "action": "ec2:AttachVolume",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:instance/i-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot attach to another project's instance",
+      "action": "ec2:AttachVolume",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:instance/i-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot delete another project's volume",
+      "action": "ec2:DeleteVolume",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:volume/vol-0bbbbbbbbbbbbbbbb",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/ebs.csi.aws.com/cluster": "true"
+      }
+    }
+  ]
+}

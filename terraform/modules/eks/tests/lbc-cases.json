@@ -52,6 +52,29 @@
       "action": "ec2:AuthorizeSecurityGroupIngress",
       "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0bbbbbbbbbbbbbbbb",
       "expect": "deny"
+    },
+    {
+      "name": "must work: register pods in its own target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/k8s-x/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging",
+        "aws:ResourceTag/elbv2.k8s.aws/cluster": "openflows-staging"
+      }
+    },
+    {
+      "name": "outwards: cannot register targets in another project's target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot deregister another project's targets",
+      "action": "elasticloadbalancing:DeregisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
+      "expect": "deny"
     }
   ]
 }

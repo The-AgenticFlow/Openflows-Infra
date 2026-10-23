@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Fetch the live permissions boundary and the AWS managed policies the cluster's
-# roles use into tests/rendered/ for iam_policy_tests.py. Needs read access to IAM.
+# Fetch the permissions boundary and the AWS managed policies the cluster's roles
+# use into tests/rendered/. Usage: render-policies.sh [boundary.json], default live.
 set -euo pipefail
 
 out="$(dirname "$0")/rendered"
@@ -13,7 +13,11 @@ fetch() {
   aws iam get-policy-version --policy-arn "$arn" --version-id "$version" --query PolicyVersion.Document --output json >"$out/$file"
 }
 
-fetch "arn:aws:iam::${account}:policy/openflows/openflows-permissions-boundary" boundary.json
+if [ -n "${1:-}" ]; then
+  cp "$1" "$out/boundary.json"
+else
+  fetch "arn:aws:iam::${account}:policy/openflows/openflows-permissions-boundary" boundary.json
+fi
 fetch "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy" cni.json
 fetch "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy" ebs-csi.json
 cp "$(dirname "$0")/../policies/aws-load-balancer-controller.json" "$out/aws-load-balancer-controller.json"

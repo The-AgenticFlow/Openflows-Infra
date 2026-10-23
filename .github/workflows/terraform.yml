@@ -116,8 +116,11 @@ jobs:
       - name: IAM cases for the cluster's in-cluster roles
         if: github.ref_type != 'tag'
         working-directory: terraform/modules/eks
+        env:
+          # A bootstrap change is judged on its rendered boundary, like the apply role.
+          BOUNDARY: ${{ steps.bootstrap.outputs.changed == 'true' && '../../bootstrap/tests/rendered/boundary.json' || '' }}
         run: |
-          bash tests/render-policies.sh
+          bash tests/render-policies.sh "${BOUNDARY}"
           for c in cni ebs-csi lbc external-dns; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
 
   plan:

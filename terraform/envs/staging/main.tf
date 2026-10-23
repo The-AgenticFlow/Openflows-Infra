@@ -16,8 +16,10 @@ module "network" {
   permissions_boundary_arn = local.permissions_boundary_arn
 }
 
+# Only once the environment's domain is decided; until then the network stands alone.
 module "dns" {
   source = "../../modules/dns"
+  count  = var.zone_name == "" ? 0 : 1
 
   environment                     = local.environment
   zone_name                       = var.zone_name

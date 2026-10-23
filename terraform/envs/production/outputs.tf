@@ -20,15 +20,15 @@ output "nat_public_ips" {
 
 output "zone_id" {
   description = "Route 53 hosted zone ID."
-  value       = module.dns.zone_id
+  value       = one(module.dns[*].zone_id)
 }
 
 output "name_servers" {
   description = "Name servers the parent domain must delegate to."
-  value       = module.dns.name_servers
+  value       = one(module.dns[*].name_servers)
 }
 
 output "certificate_arn" {
   description = "Wildcard ACM certificate for the HTTPS ingress."
-  value       = module.dns.certificate_arn
+  value       = one(module.dns[*].certificate_arn)
 }

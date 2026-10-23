@@ -9,7 +9,7 @@ terraform {
   }
 
   # Partial config: the bucket name carries the account ID, so it is passed at
-  # init time (docs/RUNBOOK-aws.md, "Working in an environment").
+  # init time (docs/RUNBOOK-aws.md, "Working in an environment by hand").
   backend "s3" {
     key          = "envs/staging/terraform.tfstate"
     region       = "eu-west-1"

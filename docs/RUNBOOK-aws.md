@@ -5,16 +5,17 @@ why is in [ARCHITECTURE-aws.md](ARCHITECTURE-aws.md).
 
 ## Common Operations
 
-### Working in an environment
+### Working in an environment by hand
 
-Run Terraform as `openflows-platform-admin` (see "Assuming the OpenFlows
-roles"). Each environment is its own root. Initialise it against its own
+The pipeline applies every environment change. Work by hand only to
+investigate or repair, as `openflows-platform-admin` (see "Assuming the
+OpenFlows roles"). Each environment is its own root. Initialise it against its own
 state bucket, then plan with the inputs that are not committed yet:
 
 ```bash
 cd terraform/envs/staging
 terraform init -backend-config="bucket=openflows-tfstate-staging-<account-id>"
-terraform plan -var="zone_name=<staging-domain>" -out=tfplan
+terraform plan -var="zone_name=<staging-domain or empty>" -out=tfplan
 ```
 
 Use `terraform/envs/production` and the production bucket for production.
@@ -23,13 +24,24 @@ files can contain secret values.
 
 ### Change control
 
-1. Every change starts as a PR against `main` with the plan output for each
-   affected environment in the description.
-2. A reviewer other than the author approves the PR.
-3. After merge, apply the reviewed plan to staging first, check it, then
-   plan and apply production.
-4. A plan that shows an unexpected destroy or replace stops the change until
-   the cause is understood.
+Changes reach AWS only through [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml):
+
+1. A pull request runs `fmt`, `validate`, trivy and the IAM cases, then plans
+   staging and production with the read-only plan roles and comments a
+   summary per environment (resource lines and totals only).
+2. A reviewer other than the author approves and merges it.
+3. The merge to `main` applies staging. The job plans, refuses any delete or
+   replace, then applies that same plan.
+4. To release to production, tag the `main` commit that staging already runs
+   and push the tag: `git tag v<version> <commit>` then `git push origin v<version>`.
+   Only `v*` tags can assume the production apply role.
+5. A plan that shows an unexpected destroy or replace stops the change until
+   the cause is understood. A deliberate removal needs its own reviewed change
+   and a manual apply as the platform admin role.
+
+Set an environment's domain with the `ZONE_NAME_STAGING` or
+`ZONE_NAME_PRODUCTION` repository variable. While it is empty, the
+environment has no hosted zone or certificate.
 
 ### State ownership
 
@@ -122,7 +134,8 @@ flowchart LR
    `terraform.tfstate.backup` and `tfplan`: they hold the full state. Rerun
    the IAM cases against the real roles with
    `python3 tests/iam_policy_tests.py tests/staging-apply-cases.json --principal <staging-apply-role-arn>`.
-4. Initialise and apply each environment as in "Working in an environment".
+4. Merge to `main` to let the pipeline apply staging, then push a `v*` tag to
+   apply production (see "Change control").
 5. Delegate each environment's domain: add the `name_servers` output as NS
    records at the parent domain. Then set `wait_for_certificate_validation = true`
    and apply again so the certificate is issued.
@@ -212,6 +225,9 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 - VPC flow logs are in CloudWatch Logs, in the log group the VPC module
   creates for each environment.
 - No alerts are defined on the foundation yet.
+- The nightly `Terraform` workflow run plans both environments and fails on
+  drift: a red nightly run means AWS no longer matches `main`. Read its plan
+  summary, then either revert the manual change or bring it into Terraform.
 
 ## Troubleshooting
 

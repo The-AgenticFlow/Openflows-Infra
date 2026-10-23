@@ -25,8 +25,9 @@ variable "single_nat_gateway" {
 }
 
 variable "zone_name" {
-  description = "Domain this environment's public hosted zone serves."
+  description = "Domain this environment's public hosted zone serves. Empty means no domain yet: no hosted zone or certificate is created."
   type        = string
+  default     = ""
 }
 
 variable "wait_for_certificate_validation" {

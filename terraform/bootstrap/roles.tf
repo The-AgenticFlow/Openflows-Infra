@@ -1,6 +1,6 @@
 # GitHub Actions authenticates through OIDC, so no AWS key is stored in GitHub.
-# Trust is pinned to this repository and to a ref, not to a GitHub environment:
-# a job that sets `environment:` gets a different subject and is refused.
+# Trust is pinned to this repository (by its OIDC subject prefix) and to a ref,
+# not to a GitHub environment: a job that sets `environment:` is refused.
 
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
@@ -8,7 +8,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  github_sub = "repo:${var.github_repository}"
+  github_sub = var.github_oidc_subject_prefix
 
   # Who may apply each environment: staging from main, production from release tags.
   apply_subjects = {

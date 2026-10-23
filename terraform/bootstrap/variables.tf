@@ -20,10 +20,14 @@ variable "environments" {
   default     = ["staging", "production"]
 }
 
-variable "github_repository" {
-  description = "GitHub repository (owner/name) whose Actions may assume the Terraform roles."
+variable "github_oidc_subject_prefix" {
+  description = "Repository part of the GitHub OIDC `sub` claim, as GitHub issues it for this repository. Newer repositories use the immutable form `repo:OWNER@OWNER-ID/REPO@REPO-ID`; read it with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` (field `sub_claim_prefix`)."
   type        = string
-  default     = "The-AgenticFlow/Openflows-Infra"
+
+  validation {
+    condition     = startswith(var.github_oidc_subject_prefix, "repo:") && !endswith(var.github_oidc_subject_prefix, ":")
+    error_message = "github_oidc_subject_prefix must start with repo: and must not end with a colon."
+  }
 }
 
 variable "human_principal_arns" {

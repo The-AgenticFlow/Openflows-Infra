@@ -118,7 +118,9 @@ flowchart LR
 
 The job never holds a long-lived key. It trades a short-lived GitHub token for
 one hour of AWS credentials, and AWS only agrees if the token comes from this
-repository and from the ref the role trusts.
+repository and from the ref the role trusts. The repository issues GitHub's
+immutable subject format, which carries the owner and repository IDs, so a
+renamed or recreated repository cannot reuse the trust.
 
 ```mermaid
 sequenceDiagram
@@ -129,7 +131,7 @@ sequenceDiagram
     participant Role as openflows-staging-terraform-apply
     participant State as Staging state bucket
     Job->>GHO: Request an ID token for audience sts.amazonaws.com
-    GHO-->>Job: Token with sub repo:The-AgenticFlow/Openflows-Infra:ref:refs/heads/main
+    GHO-->>Job: Token with sub repo:The-AgenticFlow@270928091/Openflows-Infra@1385687794:ref:refs/heads/main
     Job->>STS: AssumeRoleWithWebIdentity with the token
     STS->>Role: Check the trust policy: repository and ref match
     STS-->>Job: Temporary credentials, valid one hour

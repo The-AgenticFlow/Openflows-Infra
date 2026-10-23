@@ -35,3 +35,43 @@ variable "wait_for_certificate_validation" {
   type        = bool
   default     = false
 }
+
+variable "kubernetes_version" {
+  description = "EKS Kubernetes minor version; the add-on versions pinned in modules/eks must support it."
+  type        = string
+}
+
+variable "node_instance_types" {
+  description = "x86 instance types for the node group (the workspace image is amd64 only)."
+  type        = list(string)
+}
+
+variable "node_capacity_type" {
+  description = "ON_DEMAND or SPOT."
+  type        = string
+}
+
+variable "node_az_count" {
+  description = "How many of the private subnets' AZs nodes use. One keeps EBS volumes reattachable."
+  type        = number
+}
+
+variable "node_min_size" {
+  description = "Minimum nodes."
+  type        = number
+}
+
+variable "node_desired_size" {
+  description = "Nodes to run; no cluster autoscaler runs."
+  type        = number
+}
+
+variable "node_max_size" {
+  description = "Maximum nodes."
+  type        = number
+}
+
+variable "eks_log_retention_days" {
+  description = "Retention of the EKS control plane log group."
+  type        = number
+}

@@ -1,0 +1,34 @@
+{
+  "identity_policies": [
+    "rendered/external-dns.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "must work: change records in the environment's zone",
+      "action": "route53:ChangeResourceRecordSets",
+      "resource": "arn:aws:route53:::hostedzone/Z0ENVIRONMENTZONE",
+      "expect": "allow"
+    },
+    {
+      "name": "must work: find the zone",
+      "action": "route53:ListHostedZones",
+      "resource": "*",
+      "expect": "allow"
+    },
+    {
+      "name": "outwards: cannot change records in any other zone",
+      "action": "route53:ChangeResourceRecordSets",
+      "resource": "arn:aws:route53:::hostedzone/Z0OTHERZONE",
+      "expect": "deny"
+    },
+    {
+      "name": "upwards: cannot delete its own zone",
+      "action": "route53:DeleteHostedZone",
+      "resource": "arn:aws:route53:::hostedzone/Z0ENVIRONMENTZONE",
+      "expect": "deny"
+    }
+  ]
+}

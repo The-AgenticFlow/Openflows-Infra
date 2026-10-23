@@ -1,0 +1,58 @@
+{
+  "identity_policies": [
+    "rendered/cni.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "must work: attach an ENI the CNI tagged at creation",
+      "action": "ec2:AttachNetworkInterface",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: attach to a node the launch template tagged",
+      "action": "ec2:AttachNetworkInterface",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:instance/i-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "why the ENI tags matter: an untagged ENI cannot be attached",
+      "action": "ec2:AttachNetworkInterface",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot delete another project's ENI",
+      "action": "ec2:DeleteNetworkInterface",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: assign pod IPs on a tagged interface",
+      "action": "ec2:AssignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot unassign IPs from another project's interface",
+      "action": "ec2:UnassignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    }
+  ]
+}

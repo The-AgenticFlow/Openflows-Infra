@@ -1,0 +1,92 @@
+{
+  "identity_policies": [
+    "rendered/aws-load-balancer-controller.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "must work: create a load balancer tagged at creation",
+      "action": "elasticloadbalancing:CreateLoadBalancer",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/k8s-x/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:RequestTag/Project": "openflows",
+        "aws:RequestTag/Environment": "staging",
+        "aws:RequestTag/elbv2.k8s.aws/cluster": "openflows-staging"
+      }
+    },
+    {
+      "name": "must work: change a tagged load balancer",
+      "action": "elasticloadbalancing:ModifyLoadBalancerAttributes",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/k8s-x/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/elbv2.k8s.aws/cluster": "openflows-staging",
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: open the tagged node security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot delete another project's load balancer",
+      "action": "elasticloadbalancing:DeleteLoadBalancer",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/other/0123456789abcdef",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/elbv2.k8s.aws/cluster": "other"
+      }
+    },
+    {
+      "name": "outwards: cannot open another project's security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "must work: register pods in its own target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/k8s-x/0123456789abcdef",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging",
+        "aws:ResourceTag/elbv2.k8s.aws/cluster": "openflows-staging"
+      }
+    },
+    {
+      "name": "outwards: cannot register targets in another project's target group",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot deregister another project's targets",
+      "action": "elasticloadbalancing:DeregisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot remove another project's Shield protection",
+      "action": "shield:DeleteProtection",
+      "resource": "arn:aws:shield::686255958454:protection/other",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot detach a WAF from another project's load balancer",
+      "action": "wafv2:DisassociateWebACL",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/other/0123456789abcdef",
+      "expect": "deny"
+    }
+  ]
+}

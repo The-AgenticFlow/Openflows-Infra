@@ -51,6 +51,9 @@ locals {
   log_group_change_actions = ["logs:DeleteLogGroup", "logs:PutRetentionPolicy"]
   log_group_arn            = "arn:aws:logs:*:${var.aws_account_id}:log-group"
 
+  # AWS-owned public parameters (EKS AMI IDs) have no account and no tags.
+  aws_public_parameters = "arn:aws:ssm:*::parameter/aws/service/*"
+
   # Tag writes, which could otherwise relabel another project's resource as ours.
   tag_write_actions = [
     "ec2:CreateTags", "ec2:DeleteTags",
@@ -127,10 +130,10 @@ data "aws_iam_policy_document" "boundary" {
   # Untagged resources (other projects' resources) fail the tag check too,
   # because a missing tag never equals "openflows".
   statement {
-    sid       = "DenyChangesToOtherProjectsResources"
-    effect    = "Deny"
-    actions   = local.protected_change_actions
-    resources = ["*"]
+    sid           = "DenyChangesToOtherProjectsResources"
+    effect        = "Deny"
+    actions       = local.protected_change_actions
+    not_resources = [local.aws_public_parameters]
     condition {
       test     = "StringNotEquals"
       variable = "aws:ResourceTag/Project"

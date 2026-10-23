@@ -273,6 +273,18 @@
       "context": {
         "iam:PassedToService": "eks.amazonaws.com"
       }
+    },
+    {
+      "name": "must work: read AWS's public EKS AMI parameter",
+      "action": "ssm:GetParameter",
+      "resource": "arn:aws:ssm:eu-west-1::parameter/aws/service/eks/optimized-ami/1.37/amazon-linux-2023/x86_64/standard/recommended/release_version",
+      "expect": "allow"
+    },
+    {
+      "name": "outwards: cannot read another project's parameter in this account",
+      "action": "ssm:GetParameter",
+      "resource": "arn:aws:ssm:eu-west-1:686255958454:parameter/aws/service/other-project-secret",
+      "expect": "deny"
     }
   ]
 }

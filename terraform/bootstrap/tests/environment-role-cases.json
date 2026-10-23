@@ -1,0 +1,88 @@
+{
+  "identity_policies": [
+    "rendered/admin.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "must work: a staging role changes a staging security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging",
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "sideways: a staging role cannot change a production security group",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0cccccccccccccccc",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging",
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    },
+    {
+      "name": "sideways: a production role cannot change a staging security group",
+      "action": "ec2:RevokeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0aaaaaaaaaaaaaaaa",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "production",
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "sideways: a staging role cannot register targets in production",
+      "action": "elasticloadbalancing:RegisterTargets",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/k8s-production/0123456789abcdef",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging",
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    },
+    {
+      "name": "relabel: a staging role cannot retag a production resource",
+      "action": "ec2:CreateTags",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0cccccccccccccccc",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging",
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production",
+        "aws:RequestTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: a staging role tags what it creates",
+      "action": "ec2:CreateTags",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging",
+        "ec2:CreateAction": "CreateNetworkInterface",
+        "aws:RequestTag/Project": "openflows",
+        "aws:RequestTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: platform admin (no Environment tag) still reaches production",
+      "action": "ec2:AuthorizeSecurityGroupIngress",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:security-group/sg-0cccccccccccccccc",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    }
+  ]
+}

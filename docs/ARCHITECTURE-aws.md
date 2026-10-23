@@ -196,7 +196,10 @@ flowchart TD
 - **Environments are isolated from each other, not only from other projects.**
   Each apply role can only change resources tagged with its own `Environment`,
   only change log groups under `/openflows/<env>/` or `/aws/eks/openflows-<env>/`, only write IAM under `/openflows/<env>/`, and only use `openflows-<env>-*`
-  buckets and its own state bucket.
+  buckets and its own state bucket. Every other role an environment root
+  creates (pod, node, cluster, flow-log roles) is tagged with its
+  `Environment` and held to it by the boundary, which compares the
+  resource's `Environment` tag with the caller's.
 - **The bootstrap owns the shared IAM.** Its roles, the GitHub OIDC provider
   and the boundary cannot be changed by any role that carries the boundary,
   and its state lives in its own bucket that only the platform admin role and
@@ -254,6 +257,9 @@ own bucket admits only the platform admin role and break-glass.
   plan review is the control there.
 - Editing the permissions boundary needs a principal without it (the
   bootstrap operator or the account root).
+- The boundary is close to IAM's 6,144-character limit for managed policies
+  (about 6,120). The next rule added there will need the boundary split, for
+  example into one boundary per environment.
 
 ## Key File Locations
 

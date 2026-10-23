@@ -210,8 +210,10 @@ CI does the same on every change. When the change touches
 state (a local backend override and `-refresh=false`, so nothing is read from
 or written to the bootstrap bucket) and runs the cases against them, so a
 guard-rail change is judged before anyone applies it. Otherwise it runs the
-cases against the live staging apply role. Apply the bootstrap by hand after
-merging (bootstrap step 1, without the override).
+cases against the live staging apply role. Either way it also runs
+`environment-role-cases.json`, which passes the caller's `Environment` tag as
+context to prove every environment role stays in its own environment. Apply
+the bootstrap by hand after merging (bootstrap step 1, without the override).
 
 ### Break-glass access
 

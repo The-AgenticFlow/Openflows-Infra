@@ -176,6 +176,47 @@ data "aws_iam_policy_document" "boundary" {
       values   = ["true"]
     }
   }
+
+  # Environment roles (tagged Environment by their root) only change their own
+  # environment. Untagged roles (platform admin, read-only) span both.
+  statement {
+    sid           = "DenyOtherEnvChanges"
+    effect        = "Deny"
+    actions       = local.protected_change_actions
+    not_resources = [local.aws_public_parameters]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:ResourceTag/Environment"
+      values   = ["$${aws:PrincipalTag/Environment}"]
+    }
+    condition {
+      test     = "Null"
+      variable = "aws:PrincipalTag/Environment"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid       = "DenyOtherEnvRetag"
+    effect    = "Deny"
+    actions   = local.tag_write_actions
+    resources = ["*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:ResourceTag/Environment"
+      values   = ["$${aws:PrincipalTag/Environment}"]
+    }
+    condition {
+      test     = "Null"
+      variable = "aws:PrincipalTag/Environment"
+      values   = ["false"]
+    }
+    condition {
+      test     = "Null"
+      variable = "ec2:CreateAction"
+      values   = ["true"]
+    }
+  }
 }
 
 resource "aws_iam_policy" "boundary" {

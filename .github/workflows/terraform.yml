@@ -94,13 +94,22 @@ jobs:
           terraform plan -input=false -lock=false -refresh=false -out="${RUNNER_TEMP}/bootstrap.tfplan" >/dev/null
           bash tests/render-policies.sh "${RUNNER_TEMP}/bootstrap.tfplan"
           python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
+          python3 tests/iam_policy_tests.py tests/environment-role-cases.json
 
-      - name: IAM cases against the live staging apply role
+      - name: IAM cases against the live staging apply role and boundary
         if: steps.bootstrap.outputs.changed == 'false'
         working-directory: terraform/bootstrap
-        run: >-
-          python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
-          --principal "arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/openflows/openflows-staging-terraform-apply"
+        env:
+          BOUNDARY_ARN: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:policy/openflows/openflows-permissions-boundary
+        run: |
+          python3 tests/iam_policy_tests.py tests/staging-apply-cases.json \
+            --principal "arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/openflows/openflows-staging-terraform-apply"
+          # Principal tags are passed as context, so these run on the live boundary document.
+          mkdir -p tests/rendered
+          version="$(aws iam get-policy --policy-arn "$BOUNDARY_ARN" --query Policy.DefaultVersionId --output text)"
+          aws iam get-policy-version --policy-arn "$BOUNDARY_ARN" --version-id "$version" --query PolicyVersion.Document --output json > tests/rendered/boundary.json
+          echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' > tests/rendered/admin.json
+          python3 tests/iam_policy_tests.py tests/environment-role-cases.json
 
   plan:
     if: github.event_name == 'pull_request' || github.event_name == 'schedule'

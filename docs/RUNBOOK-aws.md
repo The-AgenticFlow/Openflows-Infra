@@ -90,35 +90,38 @@ flowchart LR
 
 1. As an IAM user with administrator rights, in an MFA session (for
    example from `aws sts get-session-token --serial-number <mfa-arn> --token-code <code>`),
-   create the buckets, keys, boundary and roles on local state. Review the
-   plan first: every resource must be named `openflows-*`.
+   create the buckets, keys, boundary and roles. The committed backend points
+   at a bucket that does not exist yet, so start on local state with a
+   temporary override file (ignored by git). Review the plan and run the IAM
+   cases first (see "Testing the permissions boundary"); every resource must
+   be named `openflows-*`.
 
    ```bash
    cd terraform/bootstrap
+   printf 'terraform {\n  backend "local" {}\n}\n' > backend_override.tf
    terraform init
    terraform plan -out=tfplan
    terraform apply tfplan
    ```
 
-2. Move the bootstrap state into its own bucket. Add this block to
-   `terraform/bootstrap/versions.tf` (no `encrypt` flag: it would force
-   AES256 instead of the bucket's KMS key), then migrate:
-
-   ```hcl
-   backend "s3" {
-     key          = "terraform.tfstate"
-     region       = "eu-west-1"
-     use_lockfile = true
-   }
-   ```
+2. Move the state into the bootstrap bucket: remove the override, then
+   migrate to the committed S3 backend. Answer the copy prompt yourself: if
+   Terraform reports that the bucket already holds state, stop and compare
+   the two before overwriting anything.
 
    ```bash
+   rm backend_override.tf
    terraform init -migrate-state \
      -backend-config="bucket=openflows-tfstate-bootstrap-<account-id>"
+   terraform plan    # must report: No changes
    ```
 
-3. Delete the local `terraform.tfstate` and its backup once the migration
-   succeeds, and commit the backend block.
+3. Check the state object is encrypted with the bootstrap KMS key
+   (`aws s3api head-object --bucket openflows-tfstate-bootstrap-<account-id> --key terraform.tfstate`
+   shows `aws:kms` and that key), then delete the local `terraform.tfstate`,
+   `terraform.tfstate.backup` and `tfplan`: they hold the full state. Rerun
+   the IAM cases against the real roles with
+   `python3 tests/iam_policy_tests.py tests/staging-apply-cases.json --principal <staging-apply-role-arn>`.
 4. Initialise and apply each environment as in "Working in an environment".
 5. Delegate each environment's domain: add the `name_servers` output as NS
    records at the parent domain. Then set `wait_for_certificate_validation = true`
@@ -165,7 +168,9 @@ python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
 ```
 
 Every case must pass. Add a case for each new rule, both the deny it is meant
-to cause and an allow that must keep working.
+to cause and an allow that must keep working. Once the roles exist, add
+`--principal <staging-apply-role-arn>` to test the live role's attached
+policies and boundary instead of the rendered files.
 
 ### Break-glass access
 

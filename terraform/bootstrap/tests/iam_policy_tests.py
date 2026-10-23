@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-# Run expected allow/deny cases through `aws iam simulate-custom-policy` (evaluation only,
-# changes nothing). Usage: iam_policy_tests.py cases.json ; exits 1 on any mismatch.
+# Run expected allow/deny cases through the IAM policy simulator (evaluation only, changes
+# nothing). --principal tests a live role's real policies instead of the files. Exits 1 on mismatch.
 import json
 import os
 import subprocess
 import sys
 
-USAGE = "usage: iam_policy_tests.py cases.json"
+USAGE = "usage: iam_policy_tests.py cases.json [--principal <role-or-user-arn>]"
 
 
 def load(path, base):
@@ -14,9 +14,8 @@ def load(path, base):
         return json.dumps(json.load(f))
 
 
-def simulate(identity, boundary, case):
+def simulate(identity, boundary, case, principal=None):
     request = {
-        "PolicyInputList": identity,
         "ActionNames": [case["action"]],
         "ResourceArns": [case.get("resource", "*")],
         "ContextEntries": [
@@ -24,10 +23,16 @@ def simulate(identity, boundary, case):
             for k, v in case.get("context", {}).items()
         ],
     }
-    if boundary:
-        request["PermissionsBoundaryPolicyInputList"] = boundary
+    if principal:
+        request["PolicySourceArn"] = principal
+        command = "simulate-principal-policy"
+    else:
+        request["PolicyInputList"] = identity
+        if boundary:
+            request["PermissionsBoundaryPolicyInputList"] = boundary
+        command = "simulate-custom-policy"
     out = subprocess.run(
-        ["aws", "iam", "simulate-custom-policy", "--cli-input-json", json.dumps(request), "--output", "json"],
+        ["aws", "iam", command, "--cli-input-json", json.dumps(request), "--output", "json"],
         capture_output=True, text=True, env={**os.environ, "AWS_PAGER": ""},
     )
     if out.returncode != 0:
@@ -37,18 +42,24 @@ def simulate(identity, boundary, case):
 
 
 def main():
-    if len(sys.argv) != 2:
+    args = sys.argv[1:]
+    principal = None
+    if "--principal" in args:
+        i = args.index("--principal")
+        principal = args[i + 1] if i + 1 < len(args) else sys.exit(USAGE)
+        del args[i:i + 2]
+    if len(args) != 1:
         sys.exit(USAGE)
-    path = sys.argv[1]
+    path = args[0]
     base = os.path.dirname(os.path.abspath(path))
     with open(path) as f:
         spec = json.load(f)
-    identity = [load(p, base) for p in spec["identity_policies"]]
-    boundary = [load(p, base) for p in spec.get("boundary_policies", [])]
+    identity = [] if principal else [load(p, base) for p in spec["identity_policies"]]
+    boundary = [] if principal else [load(p, base) for p in spec.get("boundary_policies", [])]
 
     failures = 0
     for case in spec["cases"]:
-        got, raw = simulate(identity, boundary, case)
+        got, raw = simulate(identity, boundary, case, principal)
         ok = got == case["expect"]
         failures += not ok
         print(f"{'PASS' if ok else 'FAIL'}  expect={case['expect']:<5} got={raw:<12} {case['name']}")

@@ -11,7 +11,8 @@ data "aws_iam_policy_document" "pod_identity_trust" {
 }
 
 locals {
-  # Load Balancer Controller policy from its release tag, matching the chart Argo CD installs.
+  # Load Balancer Controller policy from its release tag, minus Shield and WAF writes
+  # (unused here, and not tag-protected in this shared account).
   pod_roles = merge(
     {
       ebs-csi                      = { managed_policy = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy", inline = null }

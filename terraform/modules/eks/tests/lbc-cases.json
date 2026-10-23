@@ -75,6 +75,18 @@
       "action": "elasticloadbalancing:DeregisterTargets",
       "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:targetgroup/other/0123456789abcdef",
       "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot remove another project's Shield protection",
+      "action": "shield:DeleteProtection",
+      "resource": "arn:aws:shield::686255958454:protection/other",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot detach a WAF from another project's load balancer",
+      "action": "wafv2:DisassociateWebACL",
+      "resource": "arn:aws:elasticloadbalancing:eu-west-1:686255958454:loadbalancer/app/other/0123456789abcdef",
+      "expect": "deny"
     }
   ]
 }

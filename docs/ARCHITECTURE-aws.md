@@ -99,7 +99,7 @@ flowchart LR
 | `terraform-aws-modules/eks/aws` | `21.29.0` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Recheck what it creates against the boundary before bumping (IAM paths, tags, log group name) |
 | Kubernetes (EKS) | `1.37` | [`terraform/envs/staging/terraform.tfvars`](../terraform/envs/staging/terraform.tfvars) | Standard support ends 2027-12-01; bump the add-on versions in the same change |
 | EKS add-ons | `vpc-cni` `v1.22.4-eksbuild.3`, `coredns` `v1.14.7-eksbuild.11`, `kube-proxy` `v1.37.0-eksbuild.22`, `eks-pod-identity-agent` `v1.3.10-eksbuild.3`, `aws-ebs-csi-driver` `v1.67.1-eksbuild.1`, `metrics-server` `v0.9.0-eksbuild.13`, `external-dns` `v0.23.0-eksbuild.2` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Each is the default for the Kubernetes version; list with `aws eks describe-addon-versions --kubernetes-version <v>` |
-| AWS Load Balancer Controller IAM policy | `v3.6.1` | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs |
+| AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
 ## Components
 

@@ -235,9 +235,11 @@ locked out, for example a bucket policy that denies everyone.
 ### Reaching the cluster
 
 The EKS API endpoint is private, so `kubectl` works only from inside the VPC.
-Assume `openflows-platform-admin` (cluster-admin) or `openflows-readonly`
-(view) in the AWS console, open the cluster `openflows-<env>`, choose
-**Connect**, and use the CloudShell VPC environment it starts. Then:
+Assume `openflows-platform-admin` in the AWS console, open the cluster
+`openflows-<env>`, choose **Connect**, and use the CloudShell VPC environment
+it starts. `openflows-readonly` has the cluster's view access entry but no
+CloudShell permissions, so it works only from a host already inside the VPC.
+Then:
 
 ```bash
 aws eks update-kubeconfig --name openflows-<env> --region eu-west-1

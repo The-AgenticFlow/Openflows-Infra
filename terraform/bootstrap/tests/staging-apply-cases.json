@@ -49,7 +49,8 @@
       "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
       "expect": "allow",
       "context": {
-        "iam:PermissionsBoundary": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary"
+        "iam:PermissionsBoundary": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary",
+        "aws:RequestTag/Environment": "staging"
       }
     },
     {
@@ -458,6 +459,39 @@
       "context": {
         "aws:ResourceTag/Project": "other",
         "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: create a staging role tagged with its environment",
+      "action": "iam:CreateRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
+      "expect": "allow",
+      "context": {
+        "iam:PermissionsBoundary": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary",
+        "aws:RequestTag/Environment": "staging",
+        "aws:TagKeys": [
+          "Environment"
+        ]
+      }
+    },
+    {
+      "name": "upwards: cannot create an untagged role that escapes environment isolation",
+      "action": "iam:CreateRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
+      "expect": "deny",
+      "context": {
+        "iam:PermissionsBoundary": "arn:aws:iam::686255958454:policy/openflows/openflows-permissions-boundary"
+      }
+    },
+    {
+      "name": "upwards: cannot remove the Environment tag from a role",
+      "action": "iam:UntagRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/app",
+      "expect": "deny",
+      "context": {
+        "aws:TagKeys": [
+          "Environment"
+        ]
       }
     }
   ]

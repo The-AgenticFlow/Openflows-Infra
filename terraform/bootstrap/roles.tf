@@ -176,6 +176,32 @@ data "aws_iam_policy_document" "terraform_apply_environment" {
     }
   }
 
+  # Roles it creates must carry this Environment tag, so the boundary holds them to
+  # this environment; untagged roles span both and are created only by the bootstrap.
+  statement {
+    sid       = "RequireEnvironmentTagOnNewRoles"
+    effect    = "Deny"
+    actions   = ["iam:CreateRole"]
+    resources = ["*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:RequestTag/Environment"
+      values   = [each.key]
+    }
+  }
+
+  statement {
+    sid       = "KeepEnvironmentTagOnRoles"
+    effect    = "Deny"
+    actions   = ["iam:UntagRole"]
+    resources = ["*"]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["Environment"]
+    }
+  }
+
   # New resources must carry this environment's tag, never the other one.
   statement {
     sid       = "DenyTaggingAsOtherEnvironment"

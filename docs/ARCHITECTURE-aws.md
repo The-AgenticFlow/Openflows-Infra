@@ -17,7 +17,7 @@ services build on top of it.
 | Networks | `10.20.0.0/16` staging, `10.30.0.0/16` production |
 | CI identity | GitHub Actions OIDC, one plan role and one apply role per environment |
 | Human access | `openflows-platform-admin` and `openflows-readonly`, both MFA only |
-| Apply path | Reviewed PR, then a plan and apply per environment (see [RUNBOOK-aws.md](RUNBOOK-aws.md)) |
+| Apply path | GitHub Actions: plan on pull requests, staging on `main`, production on `v*` tags |
 
 ## System Overview
 
@@ -72,6 +72,9 @@ flowchart LR
 |---|---|---|---|
 | Terraform | `>= 1.11` | [`terraform/envs/staging/versions.tf`](../terraform/envs/staging/versions.tf) and the other roots | 1.11 is the first release with GA S3 native state locking (`use_lockfile`) |
 | AWS provider | `~> 6.70` | [`terraform/envs/staging/versions.tf`](../terraform/envs/staging/versions.tf), [`terraform/bootstrap/versions.tf`](../terraform/bootstrap/versions.tf) | Modules require `>= 6.28`, the floor of the pinned VPC module |
+| Terraform CLI in CI | `1.15.8` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Keep at or above the `required_version` floor |
+| Trivy in CI | `0.76.1` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Release tarball verified against its checksums file |
+| `actions/checkout`, `hashicorp/setup-terraform`, `aws-actions/configure-aws-credentials` | `v7.0.1`, `v4.0.1`, `v6.3.0` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Pinned by commit SHA; check inputs in the new version's `action.yml` before bumping |
 | `terraform-aws-modules/vpc/aws` | `6.7.3` | [`terraform/modules/network/main.tf`](../terraform/modules/network/main.tf) | Read the module changelog before bumping; input names change across majors |
 
 ## Components
@@ -137,6 +140,30 @@ sequenceDiagram
     STS-->>Job: Temporary credentials, valid one hour
     Job->>State: Read state and write the lock file
     Job->>Job: terraform plan, then apply the saved plan
+```
+
+### A change goes from pull request to production
+
+Every change reaches AWS the same way, and production only moves when someone
+tags a release from `main`. Each apply plans and applies in one job, and stops
+if the plan would delete or replace anything.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dev as Engineer
+    participant PR as Pull request
+    participant CI as GitHub Actions
+    participant S as Staging
+    participant P as Production
+    Dev->>PR: Open pull request
+    PR->>CI: Checks, IAM cases, plan both environments (read-only roles)
+    CI-->>PR: Plan summary per environment as a comment
+    PR->>CI: Merge to main
+    CI->>S: Plan, refuse destroys, apply with the staging apply role
+    Dev->>CI: Push a v* release tag
+    CI->>P: Plan, refuse destroys, apply with the production apply role
+    CI->>S: Nightly plan of both environments flags drift
 ```
 
 ### How an AWS call from an apply role is decided
@@ -210,10 +237,12 @@ own bucket admits only the platform admin role and break-glass.
 
 ## Known Limitations
 
-- Each environment's `zone_name` is not committed yet; it is passed at plan
-  time until the domains are decided.
-- No CI job plans or applies these roots. Plans and applies are manual and
-  follow the change-control process in the runbook.
+- No domains are decided yet. Until `ZONE_NAME_STAGING` and
+  `ZONE_NAME_PRODUCTION` are set as repository variables, the environments
+  have no hosted zone or certificate.
+- The org's GitHub plan cannot protect environments or branches on this private
+  repository, so production is gated by the release tag and the AWS trust
+  policy, not by a required reviewer.
 - Staging uses one NAT gateway, so an AZ outage cuts staging egress.
 - The default security group keeps AWS's default rules (traffic between its
   members). AWS creates it untagged, so the permissions boundary stops

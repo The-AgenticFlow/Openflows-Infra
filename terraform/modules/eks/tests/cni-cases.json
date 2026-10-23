@@ -37,6 +37,22 @@
       "action": "ec2:DeleteNetworkInterface",
       "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
       "expect": "deny"
+    },
+    {
+      "name": "must work: assign pod IPs on a tagged interface",
+      "action": "ec2:AssignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot unassign IPs from another project's interface",
+      "action": "ec2:UnassignPrivateIpAddresses",
+      "resource": "arn:aws:ec2:eu-west-1:686255958454:network-interface/eni-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
     }
   ]
 }

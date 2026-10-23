@@ -51,6 +51,8 @@ module "vpc" {
   flow_log_cloudwatch_iam_role_arn                = aws_iam_role.flow_logs.arn
   flow_log_max_aggregation_interval               = 60
   flow_log_cloudwatch_log_group_retention_in_days = var.flow_log_retention_days
+  # The guard rails let an environment manage only log groups under /openflows/<env>/.
+  flow_log_cloudwatch_log_group_name_prefix = "/openflows/${var.environment}/vpc-flow-log/"
 
   tags = { Environment = var.environment }
 }
@@ -89,9 +91,9 @@ data "aws_iam_policy_document" "flow_logs" {
       "logs:CreateLogStream", "logs:PutLogEvents",
       "logs:DescribeLogGroups", "logs:DescribeLogStreams",
     ]
-    # The VPC module names its flow-log groups /aws/vpc-flow-log/<vpc-id>.
+    # The VPC module names the group <prefix><vpc-id>, prefix set above.
     resources = [
-      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/vpc-flow-log/*",
+      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/openflows/${var.environment}/vpc-flow-log/*",
     ]
   }
 }

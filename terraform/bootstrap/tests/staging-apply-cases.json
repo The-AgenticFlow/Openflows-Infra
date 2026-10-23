@@ -181,6 +181,53 @@
       "action": "secretsmanager:GetSecretValue",
       "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
       "expect": "deny"
+    },
+    {
+      "name": "must work: set retention on a staging log group before its tags are visible",
+      "action": "logs:PutRetentionPolicy",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/openflows/staging/vpc-flow-log/vpc-0aaaaaaaaaaaaaaaa",
+      "expect": "allow"
+    },
+    {
+      "name": "must work: delete a tagged staging log group outside /openflows/",
+      "action": "logs:DeleteLogGroup",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/aws/vpc-flow-log/vpc-0aaaaaaaaaaaaaaaa",
+      "expect": "allow",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "sideways: cannot set retention on a new production log group",
+      "action": "logs:PutRetentionPolicy",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/openflows/production/vpc-flow-log/vpc-0cccccccccccccccc",
+      "expect": "deny"
+    },
+    {
+      "name": "sideways: cannot delete a production log group",
+      "action": "logs:DeleteLogGroup",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/openflows/production/vpc-flow-log/vpc-0cccccccccccccccc:*",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "openflows",
+        "aws:ResourceTag/Environment": "production"
+      }
+    },
+    {
+      "name": "outwards: cannot shorten retention on another project's untagged log group",
+      "action": "logs:PutRetentionPolicy",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/aws/vpc-flow-log/vpc-0bbbbbbbbbbbbbbbb",
+      "expect": "deny"
+    },
+    {
+      "name": "outwards: cannot delete another project's log group",
+      "action": "logs:DeleteLogGroup",
+      "resource": "arn:aws:logs:eu-west-1:686255958454:log-group:/aws/lambda/other-project",
+      "expect": "deny",
+      "context": {
+        "aws:ResourceTag/Project": "other"
+      }
     }
   ]
 }

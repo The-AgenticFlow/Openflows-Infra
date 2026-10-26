@@ -1,0 +1,39 @@
+# Chart version must match the IAM policy in terraform/modules/eks/policies.
+# Region and VPC are set because pods cannot reach instance metadata (hop limit 1);
+# credentials come from the Pod Identity association Terraform creates.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  # Removing this Application from Git also deletes what it created (ALB, DNS record).
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    chart: aws-load-balancer-controller
+    targetRevision: 3.6.1
+    helm:
+      valuesObject:
+        clusterName: openflows-staging
+        region: eu-west-1
+        vpcId: vpc-0f82a63198b638ebb
+        replicaCount: 1
+        serviceAccount:
+          name: aws-load-balancer-controller
+        # Set at creation: the permissions boundary allows changes only to resources tagged ours.
+        defaultTags:
+          Project: openflows
+          Environment: staging
+        defaultTargetType: ip
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

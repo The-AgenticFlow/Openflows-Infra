@@ -31,11 +31,9 @@ merge-triggered.
 - No more manual `helm upgrade`. Merging to `main` is the only way changes
   reach the cluster; a direct `kubectl edit` against a resource ArgoCD
   manages gets reverted on the next reconciliation.
-- The private repo needs a credential ArgoCD can use to clone it. Deploy
-  keys are disabled at the org level, so this currently uses a classic
-  personal access token stored as a Secret in the `argocd` namespace,
-  narrower than a deploy key would have been. Worth revisiting if the org
-  re-enables deploy keys or a fine-grained PAT becomes practical.
+- The repository is public, so Argo CD clones it without a credential.
+- The same pull model runs on AWS: each EKS cluster has its own Argo CD, and
+  `gitops/<env>/root.yaml` points it at that environment's Applications.
 - ArgoCD's own install, upgrade, and ingress are cluster infrastructure, not
   part of this repo. This repo only owns the `Application` that points
   ArgoCD at `charts/openflows`.

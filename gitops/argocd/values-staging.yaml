@@ -1,0 +1,18 @@
+# Argo CD for staging, installed once by hand (docs/RUNBOOK-aws.md, "Bootstrapping
+# Argo CD"). Single replicas and no Dex or notifications keep it small; the UI is
+# reached by port-forward through the admin tunnel, not an ingress.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+configs:
+  params:
+    server.insecure: true
+server:
+  replicas: 1
+repoServer:
+  replicas: 1
+applicationSet:
+  replicas: 1
+controller:
+  replicas: 1

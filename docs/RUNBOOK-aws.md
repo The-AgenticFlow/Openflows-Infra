@@ -283,6 +283,32 @@ kubectl get nodes
 3. Merge for staging; the managed node group rolls its nodes to the new AMI.
    Upgrade one minor version at a time.
 
+### Bootstrapping Argo CD
+
+Once per cluster, from a laptop tunnel or a CloudShell VPC environment as
+`openflows-platform-admin` (see "Reaching the cluster"). The repository is
+public, so Argo CD needs no Git credential.
+
+```bash
+kubectl config use-context openflows-staging-tunnel   # laptop; skip in CloudShell
+helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm \
+  --version 10.11.1 --namespace argocd --create-namespace \
+  -f gitops/argocd/values-staging.yaml
+kubectl apply -f gitops/staging/root.yaml
+```
+
+From then on, merging to `main` is the only way changes reach the cluster:
+`staging-root` syncs every Application in `gitops/staging/apps/`. To open the
+UI, keep the tunnel running and in another terminal:
+
+```bash
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+```
+
+Then browse to `http://localhost:8080` as `admin`. Delete
+`argocd-initial-admin-secret` after the first sign-in.
+
 ### Patching nodes
 
 Node AMIs are pinned by `node_ami_release_version` in the environment's

@@ -30,7 +30,9 @@ aws eks describe-cluster --name "$cluster" --region "$region" --query cluster.ce
 kubectl config set-cluster "${cluster}-tunnel" --server "https://localhost:${port}" \
   --tls-server-name "$host" --certificate-authority "$ca" --embed-certs >/dev/null
 kubectl config set-context "${cluster}-tunnel" --cluster "${cluster}-tunnel" --user "$arn" >/dev/null
-echo "kubectl context ${cluster}-tunnel -> https://localhost:${port}; keep this running"
+# update-kubeconfig switched to the direct (unreachable) context; use the tunnel instead.
+kubectl config use-context "${cluster}-tunnel" >/dev/null
+echo "kubectl now uses ${cluster}-tunnel -> https://localhost:${port}; keep this running"
 
 aws ssm start-session --region "$region" --target "$instance" \
   --document-name AWS-StartPortForwardingSessionToRemoteHost \

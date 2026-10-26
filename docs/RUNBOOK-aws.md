@@ -283,6 +283,28 @@ kubectl get nodes
 3. Merge for staging; the managed node group rolls its nodes to the new AMI.
    Upgrade one minor version at a time.
 
+### Adding a workload role
+
+Add an entry to the environment's `module "eks"` call:
+
+```hcl
+workload_roles = {
+  manager = {
+    namespace       = "openflows"
+    service_account = "manager"
+    policy_json     = data.aws_iam_policy_document.manager.json
+  }
+}
+```
+
+It creates `openflows-<env>-manager` with the boundary, path and tags, and
+binds it to that service account through Pod Identity. CI then validates the
+policy with IAM Access Analyzer in the plan, checks no workload role is an
+administrator, and the change needs its own allow and deny IAM cases (the
+pre-PR write-action sweep). Accepted Access Analyzer findings, each with its
+reason, live in
+[`terraform/bootstrap/tests/policy-findings-allowlist.json`](../terraform/bootstrap/tests/policy-findings-allowlist.json).
+
 ### Bootstrapping Argo CD
 
 Once per cluster, from a laptop tunnel or a CloudShell VPC environment as

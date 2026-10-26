@@ -74,7 +74,9 @@ role through Pod Identity:
 
 ```mermaid
 flowchart LR
-    CS["CloudShell VPC environment"] -->|"kubectl, access entry"| API["EKS API, private endpoint"]
+    CS["CloudShell VPC environment"] -->|"cluster-admin SG, access entry"| API["EKS API, private endpoint"]
+    LAP["Laptop"] -->|"SSM port forward"| TUN["admin-tunnel instance"]
+    TUN -->|"cluster-admin SG"| API
     TF["Apply role"] -->|"EKS APIs only"| API
     API --> NG["Managed node group, Spot, one AZ"]
     NG --> CNI["VPC CNI"]
@@ -119,6 +121,7 @@ flowchart LR
 | EKS cluster | EKS module | `terraform/modules/eks` | Private API endpoint, access entries only (cluster-admin for platform admin, view for read-only), control plane audit and authenticator logs |
 | Node group | EKS managed node group | `terraform/modules/eks` | x86 nodes on AL2023 with IMDSv2, hop limit 1, encrypted gp3 root volumes; launch template tags instances, volumes and ENIs |
 | Add-ons | EKS add-ons | `terraform/modules/eks` | VPC CNI, CoreDNS, kube-proxy, Pod Identity agent, EBS CSI driver (default StorageClass), metrics-server, ExternalDNS |
+| `openflows-<env>-cluster-admin`, `openflows-<env>-admin-tunnel` | Security group, EC2 instance | `terraform/modules/eks` | The only non-node path to the private API: CloudShell VPC environments and an SSM-managed `t4g.nano` that forwards a laptop port, no inbound ports |
 | `openflows-<env>-ebs-csi`, `-external-dns`, `-aws-load-balancer-controller` | IAM roles | `terraform/modules/eks` | Pod Identity roles; ExternalDNS may only change the environment's zone |
 
 ## Access Model

@@ -69,6 +69,16 @@ module "eks" {
   # The EKS-created primary security group is untagged; the boundary forbids re-tagging it.
   create_primary_security_group_tags = false
 
+  # Besides the nodes, only sessions in the cluster-admin group reach the API.
+  security_group_additional_rules = {
+    ingress_cluster_admin_443 = {
+      description              = "Cluster admin sessions (CloudShell VPC environment) to the API"
+      from_port                = 443
+      to_port                  = 443
+      source_security_group_id = aws_security_group.cluster_admin.id
+    }
+  }
+
   iam_role_path                 = var.iam_path
   iam_role_permissions_boundary = var.permissions_boundary_arn
 

@@ -235,44 +235,68 @@ locked out, for example a bucket policy that denies everyone.
 ### Reaching the cluster
 
 The EKS API endpoint is private: only the nodes and members of the
-`openflows-<env>-cluster-admin` security group can reach it. Use a role with a
-cluster access entry. Starting a tunnel or a CloudShell VPC environment needs
-`openflows-platform-admin` (cluster-admin); `openflows-readonly` has a view
-access entry but cannot start either, so it only works from a host already in
-the VPC. Access entries live in
+`openflows-<env>-cluster-admin` security group can reach it. People get in
+through an SSM tunnel from their laptop or a CloudShell VPC environment, as
+`openflows-platform-admin` (cluster-admin). `openflows-readonly` has a view
+access entry but cannot start a tunnel or CloudShell, so it only works from a
+host already inside the VPC. Access entries live in
 [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
 no `aws-auth` ConfigMap.
 
-**From a laptop.** Add a profile that assumes the admin role with MFA (the
-CLI asks for the code and caches the session):
+#### Giving a teammate access
 
-```ini
-# ~/.aws/config
-[profile openflows-admin]
-role_arn       = arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin
-source_profile = <your IAM user profile>
-mfa_serial     = arn:aws:iam::<account-id>:mfa/<device>
-region         = eu-west-1
-```
+1. They need an IAM principal in this account with an MFA device and
+   permission to call `sts:AssumeRole` on the OpenFlows roles.
+2. Add its ARN to `human_principal_arns` in
+   [`terraform/bootstrap/terraform.tfvars`](../terraform/bootstrap/terraform.tfvars),
+   merge, and apply the bootstrap ("Bootstrap", step 1).
+3. They follow "First-time laptop setup".
 
-Install the AWS CLI's
-[Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html),
-assume the role, then run [`scripts/kube-tunnel.sh`](../scripts/kube-tunnel.sh).
-It forwards `localhost:8443` to the API through the SSM-managed
-`openflows-<env>-admin-tunnel` instance (no inbound ports, no SSH keys) and
-adds a kubeconfig context for it. Keep it running and, in another terminal:
+#### First-time laptop setup
+
+1. Install the AWS CLI, `kubectl` and the
+   [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+2. Add a profile that assumes the admin role. With MFA asked by the CLI:
+
+   ```ini
+   # ~/.aws/config
+   [profile openflows-admin]
+   role_arn       = arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin
+   source_profile = <your IAM user profile>
+   mfa_serial     = arn:aws:iam::<account-id>:mfa/<device>
+   region         = eu-west-1
+   ```
+
+   Or, if you already keep an MFA session profile (from `aws sts get-session-token`),
+   use it as `source_profile` and drop `mfa_serial`.
+3. Check it: `aws sts get-caller-identity --profile openflows-admin` prints
+   `assumed-role/openflows-platform-admin/...`.
+
+#### Daily use
 
 ```bash
-AWS_PROFILE=openflows-admin scripts/kube-tunnel.sh staging   # terminal 1, keep open
-AWS_PROFILE=openflows-admin kubectl get nodes                 # terminal 2
+# terminal 1: keep open
+AWS_PROFILE=openflows-admin scripts/kube-tunnel.sh staging
+
+# terminal 2
+export KUBECONFIG=~/.kube/openflows.yaml AWS_PROFILE=openflows-admin
+kubectl get nodes
+kubectl -n argocd get applications
 ```
 
-The script leaves `openflows-staging-tunnel` as the current context.
+[`scripts/kube-tunnel.sh`](../scripts/kube-tunnel.sh) forwards
+`localhost:8443` to the API through the SSM-managed
+`openflows-<env>-admin-tunnel` instance (no inbound ports, no SSH keys). It
+writes only to `~/.kube/openflows.yaml` (or `$OPENFLOWS_KUBECONFIG`), so
+contexts for other clusters are never changed. If `kubectl` stops answering
+after heavy traffic, restart the tunnel.
 
-**From the AWS console.** Open CloudShell, choose **Actions**, then
-**Create VPC environment**, and pick the environment's VPC, one of its private
-subnets and the `openflows-<env>-cluster-admin` security group. CloudShell's
-default environment runs outside the VPC and times out on the API. In the VPC
+#### From the AWS console
+
+Open CloudShell, choose **Actions**, then **Create VPC environment**, and pick
+the environment's VPC, one of its private subnets and the
+`openflows-<env>-cluster-admin` security group. CloudShell's default
+environment runs outside the VPC and times out on the API. In the VPC
 environment:
 
 ```bash
@@ -326,7 +350,7 @@ Once per cluster, from a laptop tunnel or a CloudShell VPC environment as
 public, so Argo CD needs no Git credential.
 
 ```bash
-kubectl config use-context openflows-staging-tunnel   # laptop; skip in CloudShell
+export KUBECONFIG=~/.kube/openflows.yaml   # laptop, with the tunnel open; skip in CloudShell
 helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm \
   --version 10.11.1 --namespace argocd --create-namespace \
   -f gitops/argocd/values-staging.yaml

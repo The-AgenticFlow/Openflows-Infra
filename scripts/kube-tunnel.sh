@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Reach a private OpenFlows EKS API from a laptop: forward localhost:<port> to the
-# endpoint through the SSM-managed admin tunnel and point a kubeconfig context at it.
+# endpoint through the SSM-managed admin tunnel, with a context in its own kubeconfig.
 # Usage: scripts/kube-tunnel.sh <staging|production> [local-port]
 set -euo pipefail
+
+# Its own file: update-kubeconfig rewrites the first file in KUBECONFIG and its current context.
+export KUBECONFIG="${OPENFLOWS_KUBECONFIG:-$HOME/.kube/openflows.yaml}"
 
 env="${1:?usage: kube-tunnel.sh <staging|production> [local-port]}"
 port="${2:-8443}"
@@ -32,7 +35,9 @@ kubectl config set-cluster "${cluster}-tunnel" --server "https://localhost:${por
 kubectl config set-context "${cluster}-tunnel" --cluster "${cluster}-tunnel" --user "$arn" >/dev/null
 # update-kubeconfig switched to the direct (unreachable) context; use the tunnel instead.
 kubectl config use-context "${cluster}-tunnel" >/dev/null
-echo "kubectl now uses ${cluster}-tunnel -> https://localhost:${port}; keep this running"
+echo "Tunnel open on https://localhost:${port}; keep this running. In another terminal:"
+echo "  export KUBECONFIG=${KUBECONFIG} AWS_PROFILE=${AWS_PROFILE:-<your admin profile>}"
+echo "  kubectl get nodes"
 
 aws ssm start-session --region "$region" --target "$instance" \
   --document-name AWS-StartPortForwardingSessionToRemoteHost \

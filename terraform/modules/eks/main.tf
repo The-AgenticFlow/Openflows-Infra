@@ -141,9 +141,12 @@ module "eks" {
       iam_role_name            = "${local.name}-node"
       iam_role_use_name_prefix = false
       ami_type                 = "AL2023_x86_64_STANDARD"
-      instance_types           = var.node_instance_types
-      capacity_type            = var.node_capacity_type
-      subnet_ids               = var.node_subnet_ids
+      # Pinned: following the latest release would roll nodes on any unrelated apply.
+      use_latest_ami_release_version = false
+      ami_release_version            = var.node_ami_release_version
+      instance_types                 = var.node_instance_types
+      capacity_type                  = var.node_capacity_type
+      subnet_ids                     = var.node_subnet_ids
 
       min_size     = var.node_min_size
       desired_size = var.node_desired_size

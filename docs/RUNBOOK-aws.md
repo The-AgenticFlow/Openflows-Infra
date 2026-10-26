@@ -280,6 +280,17 @@ kubectl get nodes
 3. Merge for staging; the managed node group rolls its nodes to the new AMI.
    Upgrade one minor version at a time.
 
+### Patching nodes
+
+Node AMIs are pinned by `node_ami_release_version` in the environment's
+`terraform.tfvars`, so applies never roll nodes by surprise. To patch, read the
+latest release and bump the pin in a pull request; the managed node group then
+replaces nodes one at a time:
+
+```bash
+aws ssm get-parameter --name /aws/service/eks/optimized-ami/1.37/amazon-linux-2023/x86_64/standard/recommended/release_version --query Parameter.Value --output text
+```
+
 ### Changing node size or count
 
 Edit `node_instance_types`, `node_desired_size`, `node_min_size` or

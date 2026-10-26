@@ -84,6 +84,11 @@ variable "node_max_size" {
   type        = number
 }
 
+variable "node_ami_release_version" {
+  description = "EKS optimized AL2023 AMI release for the nodes; changing it rolls them. Latest: the release_version SSM parameter for the Kubernetes version."
+  type        = string
+}
+
 variable "node_disk_size_gb" {
   description = "Encrypted gp3 root volume per node; holds container images, including the large workspace image."
   type        = number

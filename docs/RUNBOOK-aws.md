@@ -290,6 +290,7 @@ Once per cluster, from a laptop tunnel or a CloudShell VPC environment as
 public, so Argo CD needs no Git credential.
 
 ```bash
+kubectl config use-context openflows-staging-tunnel   # laptop; skip in CloudShell
 helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm \
   --version 10.11.1 --namespace argocd --create-namespace \
   -f gitops/argocd/values-staging.yaml

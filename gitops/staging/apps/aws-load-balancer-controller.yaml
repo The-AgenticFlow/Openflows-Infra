@@ -6,6 +6,9 @@ kind: Application
 metadata:
   name: aws-load-balancer-controller
   namespace: argocd
+  # Removing this Application from Git also deletes what it created (ALB, DNS record).
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:

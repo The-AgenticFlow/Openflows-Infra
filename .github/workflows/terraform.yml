@@ -184,6 +184,7 @@ jobs:
           # New or changed policies in this environment, validated before they exist.
           terraform show -json tfplan > plan.json
           python3 ../../bootstrap/tests/validate_policies.py --plan plan.json
+          python3 ../../bootstrap/tests/no_admin_workloads.py --plan plan.json
           # Summary only: resource headers and totals, never attribute values.
           terraform show -no-color tfplan | grep -E '^\s+# .* (will|must) be|^Plan:|^No changes' | sed 's/^ *//' > summary.txt || true
           cat summary.txt

@@ -56,7 +56,8 @@ def policies(plan_path, files, include_live):
     if plan_path:
         for rc in json.load(open(plan_path))["resource_changes"]:
             after = rc["change"]["after"] or {}
-            # Values known only after apply (bucket policies, OIDC trust) come from --live.
+            # Values unknown until apply are skipped: --live covers deployed IAM roles and
+            # policies, not S3 bucket policies.
             if after.get("policy"):
                 kind = ("RESOURCE_POLICY", "AWS::S3::Bucket") if rc["type"] == "aws_s3_bucket_policy" else ("IDENTITY_POLICY", None)
                 yield (rc["address"], after["policy"], *kind)

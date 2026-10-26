@@ -10,9 +10,10 @@ resource "aws_iam_role" "workload" {
 }
 
 resource "aws_iam_role_policy_attachment" "workload" {
+  # Keyed by the caller's names, so ARNs created in the same plan stay out of the keys.
   for_each = { for pair in flatten([
-    for k, v in var.workload_roles : [for arn in v.managed_policy_arns : { key = k, arn = arn }]
-  ]) : "${pair.key}/${pair.arn}" => pair }
+    for k, v in var.workload_roles : [for name, arn in v.managed_policy_arns : { key = k, name = name, arn = arn }]
+  ]) : "${pair.key}/${pair.name}" => pair }
 
   role       = aws_iam_role.workload[each.value.key].name
   policy_arn = each.value.arn

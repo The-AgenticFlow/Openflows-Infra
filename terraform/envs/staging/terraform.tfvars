@@ -11,7 +11,8 @@ single_nat_gateway = true
 # trial.openflows.dev is delegated from the parent zone, so the certificate validates.
 wait_for_certificate_validation = true
 
-kubernetes_version = "1.37"
+kubernetes_version       = "1.37"
+node_ami_release_version = "1.37.1-20261023"
 
 # Staging trades availability for cost: Spot, one AZ, one node. Several types
 # improve Spot availability; burstable t3a is avoided (unlimited CPU credits bill extra).

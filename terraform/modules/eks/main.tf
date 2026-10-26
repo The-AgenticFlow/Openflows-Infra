@@ -69,6 +69,16 @@ module "eks" {
   # The EKS-created primary security group is untagged; the boundary forbids re-tagging it.
   create_primary_security_group_tags = false
 
+  # Besides the nodes, only sessions in the cluster-admin group reach the API.
+  security_group_additional_rules = {
+    ingress_cluster_admin_443 = {
+      description              = "Cluster admin sessions (CloudShell VPC environment) to the API"
+      from_port                = 443
+      to_port                  = 443
+      source_security_group_id = aws_security_group.cluster_admin.id
+    }
+  }
+
   iam_role_path                 = var.iam_path
   iam_role_permissions_boundary = var.permissions_boundary_arn
 
@@ -131,9 +141,12 @@ module "eks" {
       iam_role_name            = "${local.name}-node"
       iam_role_use_name_prefix = false
       ami_type                 = "AL2023_x86_64_STANDARD"
-      instance_types           = var.node_instance_types
-      capacity_type            = var.node_capacity_type
-      subnet_ids               = var.node_subnet_ids
+      # Pinned: following the latest release would roll nodes on any unrelated apply.
+      use_latest_ami_release_version = false
+      ami_release_version            = var.node_ami_release_version
+      instance_types                 = var.node_instance_types
+      capacity_type                  = var.node_capacity_type
+      subnet_ids                     = var.node_subnet_ids
 
       min_size     = var.node_min_size
       desired_size = var.node_desired_size

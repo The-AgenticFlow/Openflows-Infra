@@ -42,3 +42,13 @@ output "aws_load_balancer_controller_role_arn" {
   description = "Pod Identity role for the Load Balancer Controller."
   value       = module.eks.aws_load_balancer_controller_role_arn
 }
+
+output "cluster_admin_security_group_id" {
+  description = "Security group for the CloudShell VPC environment that reaches the private API."
+  value       = module.eks.cluster_admin_security_group_id
+}
+
+output "admin_tunnel_instance_id" {
+  description = "SSM-managed instance for laptop access to the private API (scripts/kube-tunnel.sh)."
+  value       = module.eks.admin_tunnel_instance_id
+}

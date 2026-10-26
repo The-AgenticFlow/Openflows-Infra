@@ -46,6 +46,11 @@ variable "node_instance_types" {
   type        = list(string)
 }
 
+variable "node_ami_release_version" {
+  description = "EKS optimized AMI release for the nodes; bump it to patch them."
+  type        = string
+}
+
 variable "node_capacity_type" {
   description = "ON_DEMAND or SPOT."
   type        = string

@@ -74,7 +74,9 @@ role through Pod Identity:
 
 ```mermaid
 flowchart LR
-    CS["CloudShell VPC environment"] -->|"kubectl, access entry"| API["EKS API, private endpoint"]
+    CS["CloudShell VPC environment"] -->|"cluster-admin SG, access entry"| API["EKS API, private endpoint"]
+    LAP["Laptop"] -->|"SSM port forward"| TUN["admin-tunnel instance"]
+    TUN -->|"cluster-admin SG"| API
     TF["Apply role"] -->|"EKS APIs only"| API
     API --> NG["Managed node group, Spot, one AZ"]
     NG --> CNI["VPC CNI"]
@@ -97,6 +99,7 @@ flowchart LR
 | `actions/checkout`, `hashicorp/setup-terraform`, `aws-actions/configure-aws-credentials` | `v7.0.1`, `v4.0.1`, `v6.3.0` | [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml) | Pinned by commit SHA; check inputs in the new version's `action.yml` before bumping |
 | `terraform-aws-modules/vpc/aws` | `6.7.3` | [`terraform/modules/network/main.tf`](../terraform/modules/network/main.tf) | Read the module changelog before bumping; input names change across majors |
 | `terraform-aws-modules/eks/aws` | `21.29.0` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Recheck what it creates against the boundary before bumping (IAM paths, tags, log group name) |
+| Node AMI (EKS optimized AL2023) | `1.37.1-20261023` | [`terraform/envs/staging/terraform.tfvars`](../terraform/envs/staging/terraform.tfvars) | Bumping it rolls the nodes; latest is `aws ssm get-parameter --name /aws/service/eks/optimized-ami/1.37/amazon-linux-2023/x86_64/standard/recommended/release_version` |
 | Kubernetes (EKS) | `1.37` | [`terraform/envs/staging/terraform.tfvars`](../terraform/envs/staging/terraform.tfvars) | Standard support ends 2027-12-01; bump the add-on versions in the same change |
 | EKS add-ons | `vpc-cni` `v1.22.4-eksbuild.3`, `coredns` `v1.14.7-eksbuild.11`, `kube-proxy` `v1.37.0-eksbuild.22`, `eks-pod-identity-agent` `v1.3.10-eksbuild.3`, `aws-ebs-csi-driver` `v1.67.1-eksbuild.1`, `metrics-server` `v0.9.0-eksbuild.13`, `external-dns` `v0.23.0-eksbuild.2` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Each is the default for the Kubernetes version; list with `aws eks describe-addon-versions --kubernetes-version <v>` |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
@@ -119,6 +122,7 @@ flowchart LR
 | EKS cluster | EKS module | `terraform/modules/eks` | Private API endpoint, access entries only (cluster-admin for platform admin, view for read-only), control plane audit and authenticator logs |
 | Node group | EKS managed node group | `terraform/modules/eks` | x86 nodes on AL2023 with IMDSv2, hop limit 1, encrypted gp3 root volumes; launch template tags instances, volumes and ENIs |
 | Add-ons | EKS add-ons | `terraform/modules/eks` | VPC CNI, CoreDNS, kube-proxy, Pod Identity agent, EBS CSI driver (default StorageClass), metrics-server, ExternalDNS |
+| `openflows-<env>-cluster-admin`, `openflows-<env>-admin-tunnel` | Security group, EC2 instance | `terraform/modules/eks` | The only non-node path to the private API: CloudShell VPC environments and an SSM-managed `t4g.nano` that forwards a laptop port, no inbound ports |
 | `openflows-<env>-ebs-csi`, `-external-dns`, `-aws-load-balancer-controller` | IAM roles | `terraform/modules/eks` | Pod Identity roles; ExternalDNS may only change the environment's zone |
 
 ## Access Model

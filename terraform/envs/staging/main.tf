@@ -43,11 +43,12 @@ module "eks" {
   admin_role_arns  = ["arn:aws:iam::${var.aws_account_id}:role/openflows/openflows-platform-admin"]
   viewer_role_arns = ["arn:aws:iam::${var.aws_account_id}:role/openflows/openflows-readonly"]
 
-  node_instance_types = var.node_instance_types
-  node_capacity_type  = var.node_capacity_type
-  node_min_size       = var.node_min_size
-  node_desired_size   = var.node_desired_size
-  node_max_size       = var.node_max_size
+  node_instance_types      = var.node_instance_types
+  node_ami_release_version = var.node_ami_release_version
+  node_capacity_type       = var.node_capacity_type
+  node_min_size            = var.node_min_size
+  node_desired_size        = var.node_desired_size
+  node_max_size            = var.node_max_size
 
   log_retention_days = var.eks_log_retention_days
 

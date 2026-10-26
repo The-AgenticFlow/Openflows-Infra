@@ -234,21 +234,37 @@ locked out, for example a bucket policy that denies everyone.
 
 ### Reaching the cluster
 
-The EKS API endpoint is private, so `kubectl` works only from inside the VPC.
-Assume `openflows-platform-admin` in the AWS console, open the cluster
-`openflows-<env>`, choose **Connect**, and use the CloudShell VPC environment
-it starts. `openflows-readonly` has the cluster's view access entry but no
-CloudShell permissions, so it works only from a host already inside the VPC.
-Then:
+The EKS API endpoint is private: only the nodes and members of the
+`openflows-<env>-cluster-admin` security group can reach it. Use a role with a
+cluster access entry. Starting a tunnel or a CloudShell VPC environment needs
+`openflows-platform-admin` (cluster-admin); `openflows-readonly` has a view
+access entry but cannot start either, so it only works from a host already in
+the VPC. Access entries live in
+[`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
+no `aws-auth` ConfigMap.
+
+**From a laptop.** Install the AWS CLI's
+[Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html),
+assume the role, then run [`scripts/kube-tunnel.sh`](../scripts/kube-tunnel.sh).
+It forwards `localhost:8443` to the API through the SSM-managed
+`openflows-<env>-admin-tunnel` instance (no inbound ports, no SSH keys) and
+adds a kubeconfig context for it. Keep it running and, in another terminal:
+
+```bash
+scripts/kube-tunnel.sh staging
+kubectl --context openflows-staging-tunnel get nodes
+```
+
+**From the AWS console.** Open CloudShell, choose **Actions**, then
+**Create VPC environment**, and pick the environment's VPC, one of its private
+subnets and the `openflows-<env>-cluster-admin` security group. CloudShell's
+default environment runs outside the VPC and times out on the API. In the VPC
+environment:
 
 ```bash
 aws eks update-kubeconfig --name openflows-<env> --region eu-west-1
 kubectl get nodes
 ```
-
-Access is granted only through EKS access entries in
-[`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
-no `aws-auth` ConfigMap.
 
 ### Upgrading Kubernetes and add-ons
 
@@ -259,12 +275,24 @@ no `aws-auth` ConfigMap.
      --query 'addons[0].addonVersions[?compatibilities[0].defaultVersion==`true`].addonVersion'
    ```
 
-2. In one pull request, bump `kubernetes_version` in the environment's
-   `terraform.tfvars` and every version in `local.addon_versions` in
+2. In one pull request, bump `kubernetes_version` and `node_ami_release_version`
+   (the target version's release, see "Patching nodes") in the environment's
+   `terraform.tfvars`, every version in `local.addon_versions` in
    [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf), plus
    the Version Matrix.
 3. Merge for staging; the managed node group rolls its nodes to the new AMI.
    Upgrade one minor version at a time.
+
+### Patching nodes
+
+Node AMIs are pinned by `node_ami_release_version` in the environment's
+`terraform.tfvars`, so applies never roll nodes by surprise. To patch, read the
+latest release and bump the pin in a pull request; the managed node group then
+replaces nodes one at a time:
+
+```bash
+aws ssm get-parameter --name /aws/service/eks/optimized-ami/1.37/amazon-linux-2023/x86_64/standard/recommended/release_version --query Parameter.Value --output text
+```
 
 ### Changing node size or count
 
@@ -309,7 +337,8 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
-| `kubectl` times out against the cluster | The endpoint is private | Use the CloudShell VPC environment from the cluster's **Connect** button |
+| `kubectl` times out against the cluster | The endpoint is private; the session is outside the VPC or lacks the `cluster-admin` security group | Use `scripts/kube-tunnel.sh`, or a CloudShell VPC environment with the `openflows-<env>-cluster-admin` group |
+| `kubectl` returns `Unauthorized` | The signed-in principal has no access entry (for example the bootstrap IAM user) | Assume `openflows-platform-admin` or `openflows-readonly` first |
 | Pods stuck `ContainerCreating` with `failed to assign an IP` or a volume that will not attach, and an `explicit deny in a permissions boundary` in CloudTrail | An ENI or volume was created without `Project` and `Environment` tags | Check the VPC CNI `ADDITIONAL_ENI_TAGS` and EBS CSI `extraVolumeTags` add-on settings; run the in-cluster IAM cases in `terraform/modules/eks/tests` |
 | A stateful pod stays `Pending` after a node replacement | Its EBS volume is in a different AZ from the new node | Staging nodes use one AZ for this reason; keep `node_az_count = 1` there |
 | `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |

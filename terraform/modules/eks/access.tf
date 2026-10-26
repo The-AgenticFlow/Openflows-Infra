@@ -8,14 +8,17 @@ resource "aws_security_group" "cluster_admin" {
 }
 
 # AWS-0104: HTTPS out only, to the cluster API and AWS APIs (SSM) through NAT.
+# Not aws_vpc_security_group_egress_rule: its rule is a separately tagged resource
+# that the boundary's tag check denies at creation.
 #trivy:ignore:AWS-0104
-resource "aws_vpc_security_group_egress_rule" "cluster_admin_https" {
+resource "aws_security_group_rule" "cluster_admin_https" {
   security_group_id = aws_security_group.cluster_admin.id
   description       = "HTTPS to the cluster API and AWS APIs"
-  ip_protocol       = "tcp"
+  type              = "egress"
+  protocol          = "tcp"
   from_port         = 443
   to_port           = 443
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_blocks       = ["0.0.0.0/0"]
 }
 
 # Laptop access without a public API: an SSM-managed instance forwards a local

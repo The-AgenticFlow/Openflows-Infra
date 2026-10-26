@@ -72,7 +72,14 @@ resource "aws_instance" "admin_tunnel" {
   tags        = merge(var.tags, { Name = "${local.name}-admin-tunnel" })
   volume_tags = var.tags
 
-  # A newer AMI would replace the instance on every plan; AL2023 updates in place.
+  # Security updates install daily in place, so the AMI is not replaced on every plan.
+  user_data = <<-EOT
+    #!/bin/bash
+    dnf install -y dnf-automatic
+    sed -i 's/^upgrade_type.*/upgrade_type = security/; s/^apply_updates.*/apply_updates = yes/' /etc/dnf/automatic.conf
+    systemctl enable --now dnf-automatic.timer
+  EOT
+
   lifecycle {
     ignore_changes = [ami]
   }

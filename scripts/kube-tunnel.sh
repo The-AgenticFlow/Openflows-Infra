@@ -19,11 +19,17 @@ if [ "$instance" = "None" ]; then
   exit 1
 fi
 
-# The API certificate names the real host, so kubectl verifies against it, not localhost.
+# A separate cluster entry, so direct contexts keep the real endpoint. The API
+# certificate names the real host, so kubectl verifies against it, not localhost.
 account="$(aws sts get-caller-identity --query Account --output text)"
-aws eks update-kubeconfig --name "$cluster" --region "$region" --alias "${cluster}-tunnel" >/dev/null
-kubectl config set-cluster "arn:aws:eks:${region}:${account}:cluster/${cluster}" \
-  --server "https://localhost:${port}" --tls-server-name "$host" >/dev/null
+arn="arn:aws:eks:${region}:${account}:cluster/${cluster}"
+aws eks update-kubeconfig --name "$cluster" --region "$region" >/dev/null
+ca="$(mktemp)"
+trap 'rm -f "$ca"' EXIT
+aws eks describe-cluster --name "$cluster" --region "$region" --query cluster.certificateAuthority.data --output text | base64 -d >"$ca"
+kubectl config set-cluster "${cluster}-tunnel" --server "https://localhost:${port}" \
+  --tls-server-name "$host" --certificate-authority "$ca" --embed-certs >/dev/null
+kubectl config set-context "${cluster}-tunnel" --cluster "${cluster}-tunnel" --user "$arn" >/dev/null
 echo "kubectl context ${cluster}-tunnel -> https://localhost:${port}; keep this running"
 
 aws ssm start-session --region "$region" --target "$instance" \

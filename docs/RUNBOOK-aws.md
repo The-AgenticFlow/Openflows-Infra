@@ -236,8 +236,10 @@ locked out, for example a bucket policy that denies everyone.
 
 The EKS API endpoint is private: only the nodes and members of the
 `openflows-<env>-cluster-admin` security group can reach it. Use a role with a
-cluster access entry: `openflows-platform-admin` (cluster-admin) or
-`openflows-readonly` (view). Access entries live in
+cluster access entry. Starting a tunnel or a CloudShell VPC environment needs
+`openflows-platform-admin` (cluster-admin); `openflows-readonly` has a view
+access entry but cannot start either, so it only works from a host already in
+the VPC. Access entries live in
 [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
 no `aws-auth` ConfigMap.
 
@@ -273,8 +275,9 @@ kubectl get nodes
      --query 'addons[0].addonVersions[?compatibilities[0].defaultVersion==`true`].addonVersion'
    ```
 
-2. In one pull request, bump `kubernetes_version` in the environment's
-   `terraform.tfvars` and every version in `local.addon_versions` in
+2. In one pull request, bump `kubernetes_version` and `node_ami_release_version`
+   (the target version's release, see "Patching nodes") in the environment's
+   `terraform.tfvars`, every version in `local.addon_versions` in
    [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf), plus
    the Version Matrix.
 3. Merge for staging; the managed node group rolls its nodes to the new AMI.

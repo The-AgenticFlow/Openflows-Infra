@@ -346,16 +346,25 @@ reason, live in
 ### Setting the provided secrets
 
 `openflows/<env>/provided` is created empty by Terraform; set its values once,
-and again whenever one changes. The command prompts without echoing, so the
-values stay out of shell history and logs, and keeps the secret's other keys:
+and again whenever one changes:
+
+| Key | Value | Read by |
+|---|---|---|
+| `githubClientSecret` | Client secret of the OpenFlows GitHub App | Coder (`openflows`) |
+| `argocdGithubClientSecret` | Client secret of the `OpenFlows Argo CD <env>` GitHub App | Argo CD sign-in (`argocd-github`) |
+| `coderSessionToken` | See "Bootstrapping OpenFlows workspaces" | `openflows-bootstrap` |
+
+Set one key at a time. The command prompts without echoing, so the value stays
+out of shell history and logs, and keeps the secret's other keys:
 
 ```bash
-read -rs -p "GitHub App client secret: " gh; echo
+key=githubClientSecret   # or argocdGithubClientSecret
+read -rs -p "$key: " v; echo
 cur=$(AWS_PROFILE=openflows-admin aws secretsmanager get-secret-value --secret-id openflows/staging/provided --query SecretString --output text 2>/dev/null || echo '{}')
 AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
   --secret-id openflows/staging/provided \
-  --secret-string "$(jq -c --arg gh "$gh" '. + {githubClientSecret:$gh}' <<<"$cur")"
-unset gh cur
+  --secret-string "$(jq -c --arg k "$key" --arg v "$v" '. + {($k): $v}' <<<"$cur")"
+unset v cur
 ```
 
 External Secrets picks the change up within an hour; to apply it now:

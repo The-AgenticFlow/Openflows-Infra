@@ -327,11 +327,10 @@ values stay out of shell history and logs:
 
 ```bash
 read -rs -p "GitHub App client secret: " gh; echo
-read -rs -p "AI gateway key: " ai; echo
 AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
   --secret-id openflows/staging/provided \
-  --secret-string "$(jq -cn --arg gh "$gh" --arg ai "$ai" '{githubClientSecret:$gh, aiGatewayOpenaiKey:$ai}')"
-unset gh ai
+  --secret-string "$(jq -cn --arg gh "$gh" '{githubClientSecret:$gh}')"
+unset gh
 ```
 
 External Secrets picks the change up within an hour; to apply it now:

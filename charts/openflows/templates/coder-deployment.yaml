@@ -56,6 +56,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "openflows.secretName" . }}
                   key: aiGatewayOpenaiKey
+                  # Optional: the key can be set in Coder's UI instead.
+                  optional: true
           {{- with .Values.coder.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

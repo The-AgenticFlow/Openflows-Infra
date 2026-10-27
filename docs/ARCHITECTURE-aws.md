@@ -331,10 +331,11 @@ Pod Identity role. No secret value is in Git, Helm values or Terraform state.
 | Secrets Manager secret | Keys | Set by | Becomes Kubernetes Secret |
 |---|---|---|---|
 | `openflows/<env>/generated` | `postgresPassword`, `chatHookSecret` | Terraform, write-only (never in state) | `openflows-postgres`, `openflows-chat-hook` |
-| `openflows/<env>/provided` | `githubClientSecret`, `aiGatewayOpenaiKey` | A person ("Setting the provided secrets" in the runbook) | `openflows` |
+| `openflows/<env>/provided` | `githubClientSecret` | A person ("Setting the provided secrets" in the runbook) | `openflows` |
 
 Two secrets instead of one per value keep the cost near $0.80 a month per
-environment. External Secrets refreshes them hourly.
+environment. External Secrets refreshes them hourly. The AI gateway key is
+entered in Coder's UI for now and is not stored in Secrets Manager.
 
 Terraform state can contain
 sensitive values, so each state bucket is encrypted with its environment's

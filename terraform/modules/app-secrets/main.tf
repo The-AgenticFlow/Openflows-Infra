@@ -32,6 +32,6 @@ resource "aws_secretsmanager_secret_version" "generated" {
 # Terraform never sees the values.
 resource "aws_secretsmanager_secret" "provided" {
   name                    = "openflows/${var.environment}/provided"
-  description             = "OpenFlows secrets set by hand: githubClientSecret, aiGatewayOpenaiKey."
+  description             = "OpenFlows secrets set by hand: githubClientSecret."
   recovery_window_in_days = var.recovery_window_in_days
 }

@@ -77,6 +77,9 @@ coder:
   # RBAC for the kubernetes provisioner (creates workspace pods).
   rbac:
     create: true
+    # true: a Role in the release namespace, so Coder can only manage workspaces
+    # (and read Secrets) there. false keeps the cluster-wide ClusterRole.
+    namespaced: false
 
 # ── OpenFlows controller (standalone Deployment) ─────────────────────────────
 # Disabled by default: the canonical controller runs inside the nexus workspace's
@@ -149,6 +152,10 @@ secrets:
   coderSessionToken: ""
   coderAdminPassword: ""
   coderChatHookSecret: ""   # 32+ random bytes
+  # Existing Secret with key `secret` for the chat hook. Set it under GitOps tools
+  # that render without cluster access (Argo CD): `lookup` cannot reuse the live value
+  # there, so the generated secret would change on every sync.
+  chatHookExistingSecret: ""
   # Key for the AI Gateway (Coder chat). Same LLM gateway as the agents.
   aiGatewayOpenaiKey: ""
   # GitHub App

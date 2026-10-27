@@ -1,0 +1,62 @@
+# OpenFlows control plane on staging: Coder, Postgres and Redis in the cluster
+# (EBS volumes), secrets from External Secrets, ingress on the shared ALB.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openflows
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/The-AgenticFlow/Openflows-Infra
+    targetRevision: main
+    path: charts/openflows
+    helm:
+      valuesObject:
+        existingSecret: openflows
+        postgres:
+          existingSecret: openflows-postgres
+        secrets:
+          chatHookExistingSecret: openflows-chat-hook
+        coder:
+          accessUrl: https://coder.trial.openflows.dev
+          # Workspaces run in this namespace (templates' artifacts_namespace), so
+          # Coder needs no cluster-wide rights, Secrets included.
+          rbac:
+            namespaced: true
+          externalAuth:
+            # The homelab GitHub App; change if staging gets its own app.
+            clientId: Iv23liMefXkQScetBMqI
+          ingress:
+            enabled: true
+            className: alb
+            host: coder.trial.openflows.dev
+            annotations:
+              alb.ingress.kubernetes.io/group.name: openflows-staging
+              alb.ingress.kubernetes.io/scheme: internet-facing
+              alb.ingress.kubernetes.io/target-type: ip
+              alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+              alb.ingress.kubernetes.io/ssl-redirect: "443"
+              alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+              alb.ingress.kubernetes.io/healthcheck-path: /healthz
+            tls:
+              enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

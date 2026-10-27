@@ -319,6 +319,32 @@ pre-PR write-action sweep). Accepted Access Analyzer findings, each with its
 reason, live in
 [`terraform/bootstrap/tests/policy-findings-allowlist.json`](../terraform/bootstrap/tests/policy-findings-allowlist.json).
 
+### Setting the provided secrets
+
+`openflows/<env>/provided` is created empty by Terraform; set its values once,
+and again whenever one changes. The command prompts without echoing, so the
+values stay out of shell history and logs:
+
+```bash
+read -rs -p "GitHub App client secret: " gh; echo
+read -rs -p "AI gateway key: " ai; echo
+AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
+  --secret-id openflows/staging/provided \
+  --secret-string "$(jq -cn --arg gh "$gh" --arg ai "$ai" '{githubClientSecret:$gh, aiGatewayOpenaiKey:$ai}')"
+unset gh ai
+```
+
+External Secrets picks the change up within an hour; to apply it now:
+`kubectl -n openflows annotate externalsecret openflows force-sync=$(date +%s) --overwrite`.
+
+### Rotating the generated secrets
+
+Increase `generated_version` on `module "app_secrets"` in the environment's
+`main.tf` and merge: Terraform writes new values without storing them. Then
+restart what uses them (`kubectl -n openflows rollout restart statefulset/openflows-postgres deployment/openflows-coder`).
+Postgres keeps its old password inside its data volume, so a Postgres password
+rotation also needs `ALTER USER coder PASSWORD` run in the database first.
+
 ### Bootstrapping Argo CD
 
 Once per cluster, from a laptop tunnel or a CloudShell VPC environment as

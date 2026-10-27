@@ -7,8 +7,9 @@ metadata:
     {{- include "openflows.labels" . | nindent 4 }}
     app.kubernetes.io/component: coder
 ---
+{{- $kind := ternary "Role" "ClusterRole" .Values.coder.rbac.namespaced }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: {{ $kind }}
 metadata:
   name: {{ include "openflows.fullname" . }}-coder
   labels:
@@ -30,7 +31,7 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: {{ $kind }}Binding
 metadata:
   name: {{ include "openflows.fullname" . }}-coder
   labels:
@@ -38,7 +39,7 @@ metadata:
     app.kubernetes.io/component: coder
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: {{ $kind }}
   name: {{ include "openflows.fullname" . }}-coder
 subjects:
   - kind: ServiceAccount

@@ -57,6 +57,8 @@ All configuration lives in `values.yaml`. Key sections:
 | `coder` | Coder image/tag, access URL, ingress, GitHub external auth, provisioner |
 | `controller` | Controller image/tag, tenant, hook address |
 | `secrets` | Inline secret values (or use `existingSecret`) |
+| `coder.rbac.namespaced` | `true`: Coder gets a Role in the release namespace only (workspaces must run there, the templates' default). `false` (default): cluster-wide ClusterRole |
+| `secrets.chatHookExistingSecret` | Existing Secret (key `secret`) for the Coder chat hook. Set it when deploying with Argo CD or another tool that renders without cluster access; otherwise the generated value changes on every sync |
 
 ## Releasing
 

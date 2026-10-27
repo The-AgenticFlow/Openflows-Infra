@@ -27,6 +27,9 @@ postgres:
   user: coder
   # password: ""            # set via existingSecret or this value
   existingSecret: ""        # name of a Secret holding `password`
+  # Data directory inside the volume. Set it (e.g. "pgdata") on block storage such as
+  # EBS, whose root holds lost+found; leave empty to keep data at the volume root.
+  pgdataSubdir: ""
   resources: {}
   persistence:
     enabled: true

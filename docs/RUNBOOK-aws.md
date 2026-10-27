@@ -339,10 +339,18 @@ External Secrets picks the change up within an hour; to apply it now:
 ### Rotating the generated secrets
 
 Increase `generated_version` on `module "app_secrets"` in the environment's
-`main.tf` and merge: Terraform writes new values without storing them. Then
-restart what uses them (`kubectl -n openflows rollout restart statefulset/openflows-postgres deployment/openflows-coder`).
-Postgres keeps its old password inside its data volume, so a Postgres password
-rotation also needs `ALTER USER coder PASSWORD` run in the database first.
+`main.tf` and merge: Terraform writes new values without storing them. Postgres
+keeps its password inside its data volume, so for a Postgres rotation run
+`ALTER USER coder PASSWORD '<new>'` in the database first. Then refresh the
+Kubernetes Secrets before restarting their consumers, or they read the old value:
+
+```bash
+for es in openflows-postgres openflows-chat-hook; do
+  kubectl -n openflows annotate externalsecret $es force-sync=$(date +%s) --overwrite
+done
+kubectl -n openflows wait externalsecret openflows-postgres openflows-chat-hook --for=condition=Ready --timeout=2m
+kubectl -n openflows rollout restart statefulset/openflows-postgres deployment/openflows-coder
+```
 
 ### Bootstrapping Argo CD
 

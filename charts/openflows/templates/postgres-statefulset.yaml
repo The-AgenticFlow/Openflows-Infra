@@ -27,6 +27,11 @@ spec:
         - name: postgres
           image: {{ .Values.postgres.image }}
           env:
+            {{- with .Values.postgres.pgdataSubdir }}
+            # A fresh block volume has lost+found at its root, which initdb rejects.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/{{ . }}
+            {{- end }}
             - name: POSTGRES_USER
               value: {{ .Values.postgres.user | quote }}
             - name: POSTGRES_DB

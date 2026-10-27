@@ -20,6 +20,7 @@ spec:
         existingSecret: openflows
         postgres:
           existingSecret: openflows-postgres
+          pgdataSubdir: pgdata
         secrets:
           chatHookExistingSecret: openflows-chat-hook
         coder:

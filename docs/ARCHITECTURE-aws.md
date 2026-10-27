@@ -105,6 +105,7 @@ flowchart LR
 | Argo CD (Helm chart `argo-cd`) | `10.11.1` (Argo CD `v3.5.6`) | [`docs/RUNBOOK-aws.md`](RUNBOOK-aws.md) "Bootstrapping Argo CD", values in [`gitops/argocd/values-staging.yaml`](../gitops/argocd/values-staging.yaml) | Installed by hand; upgrade with the same `helm upgrade` command and the new version |
 | AWS Load Balancer Controller chart | `3.6.1` | [`gitops/staging/apps/aws-load-balancer-controller.yaml`](../gitops/staging/apps/aws-load-balancer-controller.yaml) | Bump together with its IAM policy below |
 | External Secrets chart | `2.13.0` | [`gitops/staging/apps/external-secrets.yaml`](../gitops/staging/apps/external-secrets.yaml) | Serves `external-secrets.io/v1`; check the CRD version before a major bump |
+| OpenFlows workspace image (bootstrap Job) | `1.3.3`, pinned by digest | [`gitops/staging/openflows-bootstrap/bootstrap.yaml`](../gitops/staging/openflows-bootstrap/bootstrap.yaml) | Carries the `openflows` binary and the templates it pushes; bump with the chart's `workspace.image` |
 | OpenFlows chart | `0.1.3` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
@@ -330,7 +331,7 @@ Pod Identity role. No secret value is in Git, Helm values or Terraform state.
 | Secrets Manager secret | Keys | Set by | Becomes Kubernetes Secret |
 |---|---|---|---|
 | `openflows/<env>/generated` | `postgresPassword`, `chatHookSecret` | Terraform, write-only (never in state) | `openflows-postgres`, `openflows-chat-hook` |
-| `openflows/<env>/provided` | `githubClientSecret` | A person ("Setting the provided secrets" in the runbook) | `openflows` |
+| `openflows/<env>/provided` | `githubClientSecret`, `coderSessionToken` | A person ("Setting the provided secrets" in the runbook) | `openflows`, `openflows-bootstrap` |
 
 Two secrets instead of one per value keep the cost near $0.80 a month per
 environment. External Secrets refreshes them hourly. The AI gateway key is

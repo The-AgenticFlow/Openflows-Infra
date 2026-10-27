@@ -347,14 +347,15 @@ reason, live in
 
 `openflows/<env>/provided` is created empty by Terraform; set its values once,
 and again whenever one changes. The command prompts without echoing, so the
-values stay out of shell history and logs:
+values stay out of shell history and logs, and keeps the secret's other keys:
 
 ```bash
 read -rs -p "GitHub App client secret: " gh; echo
+cur=$(AWS_PROFILE=openflows-admin aws secretsmanager get-secret-value --secret-id openflows/staging/provided --query SecretString --output text 2>/dev/null || echo '{}')
 AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
   --secret-id openflows/staging/provided \
-  --secret-string "$(jq -cn --arg gh "$gh" '{githubClientSecret:$gh}')"
-unset gh
+  --secret-string "$(jq -c --arg gh "$gh" '. + {githubClientSecret:$gh}' <<<"$cur")"
+unset gh cur
 ```
 
 External Secrets picks the change up within an hour; to apply it now:

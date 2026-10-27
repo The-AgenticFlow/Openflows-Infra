@@ -29,8 +29,9 @@ spec:
           rbac:
             namespaced: true
           externalAuth:
-            # The homelab GitHub App; change if staging gets its own app.
-            clientId: Iv23liMefXkQScetBMqI
+            # Staging's own GitHub App (openflows-apps); its client secret is in Secrets Manager.
+            clientId: Iv23liSR6TsW7SxvgRLH
+            appInstallUrl: https://github.com/apps/openflows-apps/installations/new
           ingress:
             enabled: true
             className: alb

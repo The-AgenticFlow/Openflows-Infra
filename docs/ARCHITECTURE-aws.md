@@ -289,6 +289,11 @@ flowchart TD
   UI is the day-to-day view. A public endpoint was tried: the shared account's
   organization refuses `eks:UpdateClusterConfig` for our apply role even
   though our IAM policy and boundary allow it, so the endpoint stays private.
+- **Argo CD signs in through GitHub, limited to one team.** Its UI is on the
+  shared ALB at `argocd.<zone>`. Dex admits only members of the org team
+  `platform-admins` (the Coder owners) and maps them to Argo CD admin; there is
+  no local admin and the default role grants nothing. No extra load balancer,
+  no VPN.
 - **Managed node groups, not Auto Mode.** Auto Mode launches and deletes
   instances and load balancers through our cluster role, which carries the
   boundary, and tags them only `eks:*`. Managed node groups act through an
@@ -334,7 +339,7 @@ Pod Identity role. No secret value is in Git, Helm values or Terraform state.
 | Secrets Manager secret | Keys | Set by | Becomes Kubernetes Secret |
 |---|---|---|---|
 | `openflows/<env>/generated` | `postgresPassword`, `chatHookSecret` | Terraform, write-only (never in state) | `openflows-postgres`, `openflows-chat-hook` |
-| `openflows/<env>/provided` | `githubClientSecret`, `coderSessionToken` | A person ("Setting the provided secrets" in the runbook) | `openflows`, `openflows-bootstrap` |
+| `openflows/<env>/provided` | `githubClientSecret`, `coderSessionToken`, `argocdGithubClientSecret` | A person ("Setting the provided secrets" in the runbook) | `openflows`, `openflows-bootstrap`, `argocd-github` (in `argocd`) |
 
 Two secrets instead of one per value keep the cost near $0.80 a month per
 environment. External Secrets refreshes them hourly. The AI gateway key is
@@ -373,8 +378,8 @@ own bucket admits only the platform admin role and break-glass.
   staging down until a replacement node starts. No cluster autoscaler runs, so
   the node count is whatever `node_desired_size` says.
 - Argo CD itself is installed by hand once per cluster; everything it runs is
-  GitOps from `gitops/<env>/`. Its UI has no ingress and is reached through
-  the admin tunnel.
+  GitOps from `gitops/<env>/`. Changes to its own values need a manual
+  `helm upgrade`.
 
 ## Key File Locations
 

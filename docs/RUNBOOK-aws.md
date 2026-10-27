@@ -243,7 +243,19 @@ the VPC. Access entries live in
 [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
 no `aws-auth` ConfigMap.
 
-**From a laptop.** Install the AWS CLI's
+**From a laptop.** Add a profile that assumes the admin role with MFA (the
+CLI asks for the code and caches the session):
+
+```ini
+# ~/.aws/config
+[profile openflows-admin]
+role_arn       = arn:aws:iam::<account-id>:role/openflows/openflows-platform-admin
+source_profile = <your IAM user profile>
+mfa_serial     = arn:aws:iam::<account-id>:mfa/<device>
+region         = eu-west-1
+```
+
+Install the AWS CLI's
 [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html),
 assume the role, then run [`scripts/kube-tunnel.sh`](../scripts/kube-tunnel.sh).
 It forwards `localhost:8443` to the API through the SSM-managed
@@ -251,9 +263,11 @@ It forwards `localhost:8443` to the API through the SSM-managed
 adds a kubeconfig context for it. Keep it running and, in another terminal:
 
 ```bash
-scripts/kube-tunnel.sh staging
-kubectl --context openflows-staging-tunnel get nodes
+AWS_PROFILE=openflows-admin scripts/kube-tunnel.sh staging   # terminal 1, keep open
+AWS_PROFILE=openflows-admin kubectl get nodes                 # terminal 2
 ```
+
+The script leaves `openflows-staging-tunnel` as the current context.
 
 **From the AWS console.** Open CloudShell, choose **Actions**, then
 **Create VPC environment**, and pick the environment's VPC, one of its private

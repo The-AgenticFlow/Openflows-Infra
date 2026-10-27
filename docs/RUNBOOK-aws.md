@@ -347,18 +347,50 @@ reason, live in
 
 `openflows/<env>/provided` is created empty by Terraform; set its values once,
 and again whenever one changes. The command prompts without echoing, so the
-values stay out of shell history and logs:
+values stay out of shell history and logs, and keeps the secret's other keys:
 
 ```bash
 read -rs -p "GitHub App client secret: " gh; echo
+cur=$(AWS_PROFILE=openflows-admin aws secretsmanager get-secret-value --secret-id openflows/staging/provided --query SecretString --output text 2>/dev/null || echo '{}')
 AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
   --secret-id openflows/staging/provided \
-  --secret-string "$(jq -cn --arg gh "$gh" '{githubClientSecret:$gh}')"
-unset gh
+  --secret-string "$(jq -c --arg gh "$gh" '. + {githubClientSecret:$gh}' <<<"$cur")"
+unset gh cur
 ```
 
 External Secrets picks the change up within an hour; to apply it now:
 `kubectl -n openflows annotate externalsecret openflows force-sync=$(date +%s) --overwrite`.
+
+### Bootstrapping OpenFlows workspaces
+
+The `openflows-bootstrap` Argo CD app runs `openflows bootstrap` as a Job inside
+the cluster: it pushes the workspace templates (nexus, forge, sentinel, vessel,
+lore) into Coder. Nothing is built on a laptop. It needs, in order:
+
+1. Coder's admin account, created in the browser at the environment's Coder URL.
+   A fresh Coder makes whoever opens it first the owner, so do this right after
+   the first deploy.
+2. An admin API token (Coder: Settings, Tokens) stored as `coderSessionToken`
+   in `openflows/<env>/provided`, keeping the other keys:
+
+   ```bash
+   read -rs -p "Coder token: " t; echo
+   cur=$(AWS_PROFILE=openflows-admin aws secretsmanager get-secret-value --secret-id openflows/staging/provided --query SecretString --output text)
+   AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value --secret-id openflows/staging/provided \
+     --secret-string "$(jq -c --arg t "$t" '. + {coderSessionToken:$t}' <<<"$cur")"
+   unset t cur
+   ```
+
+3. At least one AI model in Coder (AI settings, Providers, then Models);
+   bootstrap fails without one.
+
+The Job runs after each sync of `openflows-bootstrap`. To run it again, sync
+that app in the Argo CD UI. Bootstrap is idempotent: unchanged templates are
+skipped.
+
+```bash
+kubectl -n openflows logs job/openflows-bootstrap
+```
 
 ### Rotating the generated secrets
 
@@ -458,6 +490,8 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
 | `kubectl` times out against the cluster | The endpoint is private; the session is outside the VPC or lacks the `cluster-admin` security group | Use `scripts/kube-tunnel.sh`, or a CloudShell VPC environment with the `openflows-<env>-cluster-admin` group |
 | A `ClusterSecretStore` shows `InvalidProviderConfig: no EC2 IMDS role found` | The External Secrets pod started before its Pod Identity association existed (first install), so it has no AWS credentials | `kubectl -n external-secrets rollout restart deploy/external-secrets`; the same applies to any pod whose Pod Identity association was created after it started |
+| `openflows-bootstrap` Job pod stays `CreateContainerConfigError` | `coderSessionToken` is not in `openflows/<env>/provided` yet | Store the token ("Bootstrapping OpenFlows workspaces"); the pod starts once External Secrets syncs it |
+| Bootstrap fails with no LLM models configured | No AI model in Coder yet | Add a provider and model in Coder's AI settings, then sync `openflows-bootstrap` again |
 | `kubectl` returns `Unauthorized` | The signed-in principal has no access entry (for example the bootstrap IAM user) | Assume `openflows-platform-admin` or `openflows-readonly` first |
 | Pods stuck `ContainerCreating` with `failed to assign an IP` or a volume that will not attach, and an `explicit deny in a permissions boundary` in CloudTrail | An ENI or volume was created without `Project` and `Environment` tags | Check the VPC CNI `ADDITIONAL_ENI_TAGS` and EBS CSI `extraVolumeTags` add-on settings; run the in-cluster IAM cases in `terraform/modules/eks/tests` |
 | A stateful pod stays `Pending` after a node replacement | Its EBS volume is in a different AZ from the new node | Staging nodes use one AZ for this reason; keep `node_az_count = 1` there |

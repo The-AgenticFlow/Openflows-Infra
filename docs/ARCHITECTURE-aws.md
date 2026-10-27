@@ -106,7 +106,6 @@ flowchart LR
 | AWS Load Balancer Controller chart | `3.6.1` | [`gitops/staging/apps/aws-load-balancer-controller.yaml`](../gitops/staging/apps/aws-load-balancer-controller.yaml) | Bump together with its IAM policy below |
 | External Secrets chart | `2.13.0` | [`gitops/staging/apps/external-secrets.yaml`](../gitops/staging/apps/external-secrets.yaml) | Serves `external-secrets.io/v1`; check the CRD version before a major bump |
 | OpenFlows chart | `0.1.3` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
-| Smoke test image (`nginx-unprivileged`) | `1.30-alpine`, pinned by digest | [`gitops/staging/smoke/smoke.yaml`](../gitops/staging/smoke/smoke.yaml) | Test workload only |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
 ## Components
@@ -380,7 +379,7 @@ own bucket admits only the platform admin role and break-glass.
 | [`terraform/bootstrap/`](../terraform/bootstrap/) | State buckets, KMS keys, permissions boundary, GitHub OIDC and IAM roles |
 | [`terraform/modules/network/`](../terraform/modules/network/) | VPC, subnets, NAT, flow logs |
 | [`terraform/modules/dns/`](../terraform/modules/dns/) | Hosted zone and certificate |
-| [`gitops/staging/`](../gitops/staging/) | Argo CD Applications for staging: the Load Balancer Controller and the ingress smoke test |
+| [`gitops/staging/`](../gitops/staging/) | Argo CD Applications for staging: Load Balancer Controller, External Secrets, OpenFlows |
 | [`gitops/argocd/`](../gitops/argocd/) | Argo CD Helm values |
 | [`gitops/staging/openflows-secrets/`](../gitops/staging/openflows-secrets/) | Secret store and ExternalSecrets for OpenFlows |
 | [`terraform/modules/app-secrets/`](../terraform/modules/app-secrets/) | Secrets Manager secrets, generated values write-only |

@@ -27,3 +27,8 @@ output "aws_load_balancer_controller_role_arn" {
   description = "Pod Identity role bound to kube-system/aws-load-balancer-controller."
   value       = aws_iam_role.pod["aws-load-balancer-controller"].arn
 }
+
+output "workload_role_arns" {
+  description = "Workload role ARNs by key."
+  value       = { for k, r in aws_iam_role.workload : k => r.arn }
+}

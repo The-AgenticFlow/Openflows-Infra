@@ -150,6 +150,37 @@ flowchart LR
     BND -.-> RO
 ```
 
+### Role catalogue
+
+Every role is per environment, carries the permissions boundary, lives under
+`/openflows/<env>/` (bootstrap roles under `/openflows/`) and is tagged with
+its `Environment`, which the boundary holds it to. Workloads get roles through
+EKS Pod Identity, one service account per role; no workload role may hold
+administrator rights, and CI checks that.
+
+| Role | Assumed by | Scope | Status |
+|---|---|---|---|
+| `openflows-<env>-terraform-plan` | GitHub Actions: pull requests and `main` | Read-only, its state bucket | Live |
+| `openflows-<env>-terraform-apply` (deployer) | GitHub Actions: `main` (staging), `v*` tags (production) | Its own environment's tags, IAM path and buckets | Live |
+| `openflows-platform-admin`, `openflows-readonly` | Named humans with MFA (`human_principal_arns`) | Both environments; cluster-admin or view access entry | Live |
+| `openflows-<env>-aws-load-balancer-controller` (ingress) | Pod `kube-system/aws-load-balancer-controller` | ALBs, target groups and security groups tagged ours | Live |
+| `openflows-<env>-external-dns` (DNS) | Pod `external-dns/external-dns` | Records in the environment's zone only | Live |
+| `openflows-<env>-ebs-csi` | Pod `kube-system/ebs-csi-controller-sa` | EBS volumes tagged ours | Live |
+| `openflows-<env>-node`, cluster role, `-admin-tunnel`, `-vpc-flow-logs` | EC2, EKS, VPC Flow Logs | Node, control plane, SSM and log delivery duties | Live |
+| `openflows-<env>-manager` | Manager pods | Its own secrets and data | With the Manager chart |
+| `openflows-<env>-coder` | Coder pods | Its own secrets and data | With the Coder chart |
+| `openflows-<env>-provisioner` | Provisioner pods | Workspace resources tagged with `Environment`, tenant ID and managed-by | With the AWS provisioner |
+| `openflows-<env>-tenant-runtime` | Tenant workspaces | Its tenant's resources only | With tenant isolation |
+| `openflows-<env>-external-secrets` | External Secrets pods | Read the environment's secrets | With Secrets Manager integration |
+| `openflows-<env>-observability` | Metrics and log agents | Write metrics and logs | With observability |
+| `openflows-<env>-recovery` | Restore runs | Backup restore in its environment | With backup and restore |
+
+The roles marked "With ..." are added through `workload_roles` in
+[`terraform/modules/eks/workloads.tf`](../terraform/modules/eks/workloads.tf)
+by the change that brings their workload, with the permissions that workload
+proves it needs. Kubernetes RBAC is separate: humans get cluster-admin or view
+through access entries today; per-namespace roles arrive with the namespaces.
+
 ## Key Flows
 
 ### A GitHub Actions job gets AWS credentials

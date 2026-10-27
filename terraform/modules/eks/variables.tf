@@ -117,3 +117,14 @@ variable "zone_name" {
   type        = string
   default     = ""
 }
+
+variable "workload_roles" {
+  description = "Pod Identity roles for OpenFlows workloads, keyed by a short name (role openflows-<env>-<key>). Each gets the boundary, the environment's IAM path and tags, and one service-account binding. managed_policy_arns maps a name of your choice to a policy ARN."
+  type = map(object({
+    namespace           = string
+    service_account     = string
+    managed_policy_arns = optional(map(string), {})
+    policy_json         = optional(string)
+  }))
+  default = {}
+}

@@ -93,6 +93,7 @@ jobs:
           printf 'terraform {\n  backend "local" {}\n}\n' > backend_override.tf
           terraform init -input=false -reconfigure >/dev/null
           terraform plan -input=false -lock=false -refresh=false -out="${RUNNER_TEMP}/bootstrap.tfplan" >/dev/null
+          terraform show -json "${RUNNER_TEMP}/bootstrap.tfplan" > "${RUNNER_TEMP}/bootstrap.json"
           bash tests/render-policies.sh "${RUNNER_TEMP}/bootstrap.tfplan"
           python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
           python3 tests/iam_policy_tests.py tests/environment-role-cases.json
@@ -122,6 +123,21 @@ jobs:
         run: |
           bash tests/render-policies.sh "${BOUNDARY}"
           for c in cni ebs-csi lbc external-dns; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
+
+      # Every policy we own, live and (for a bootstrap change) as it would apply.
+      - name: IAM Access Analyzer policy validation
+        if: github.ref_type != 'tag'
+        working-directory: terraform/bootstrap
+        env:
+          PLAN_JSON: ${{ steps.bootstrap.outputs.changed == 'true' && format('{0}/bootstrap.json', runner.temp) || '' }}
+        run: |
+          python3 tests/validate_policies.py --live ${PLAN_JSON:+--plan "$PLAN_JSON"} \
+            ../modules/eks/policies/aws-load-balancer-controller.json ../modules/eks/policies/external-dns.json.tftpl
+
+      - name: No workload role is an administrator
+        if: github.ref_type != 'tag'
+        working-directory: terraform/bootstrap
+        run: python3 tests/no_admin_workloads.py
 
   plan:
     if: github.event_name == 'pull_request' || github.event_name == 'schedule'
@@ -165,6 +181,10 @@ jobs:
           set -e
           [ "$code" -eq 1 ] && exit 1
           echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          # New or changed policies in this environment, validated before they exist.
+          terraform show -json tfplan > plan.json
+          python3 ../../bootstrap/tests/validate_policies.py --plan plan.json
+          python3 ../../bootstrap/tests/no_admin_workloads.py --plan plan.json
           # Summary only: resource headers and totals, never attribute values.
           terraform show -no-color tfplan | grep -E '^\s+# .* (will|must) be|^Plan:|^No changes' | sed 's/^ *//' > summary.txt || true
           cat summary.txt

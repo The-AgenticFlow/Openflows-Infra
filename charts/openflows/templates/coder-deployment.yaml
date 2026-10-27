@@ -49,13 +49,15 @@ spec:
             - name: CODER_CHAT_HOOK_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}-chat-hook-secret
+                  name: {{ .Values.secrets.chatHookExistingSecret | default (printf "%s-chat-hook-secret" (include "openflows.fullname" .)) }}
                   key: secret
             - name: CODER_AI_GATEWAY_OPENAI_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openflows.secretName" . }}
                   key: aiGatewayOpenaiKey
+                  # Optional: the key can be set in Coder's UI instead.
+                  optional: true
           {{- with .Values.coder.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

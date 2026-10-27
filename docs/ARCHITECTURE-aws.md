@@ -104,6 +104,8 @@ flowchart LR
 | EKS add-ons | `vpc-cni` `v1.22.4-eksbuild.3`, `coredns` `v1.14.7-eksbuild.11`, `kube-proxy` `v1.37.0-eksbuild.22`, `eks-pod-identity-agent` `v1.3.10-eksbuild.3`, `aws-ebs-csi-driver` `v1.67.1-eksbuild.1`, `metrics-server` `v0.9.0-eksbuild.13`, `external-dns` `v0.23.0-eksbuild.2` | [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf) | Each is the default for the Kubernetes version; list with `aws eks describe-addon-versions --kubernetes-version <v>` |
 | Argo CD (Helm chart `argo-cd`) | `10.11.1` (Argo CD `v3.5.6`) | [`docs/RUNBOOK-aws.md`](RUNBOOK-aws.md) "Bootstrapping Argo CD", values in [`gitops/argocd/values-staging.yaml`](../gitops/argocd/values-staging.yaml) | Installed by hand; upgrade with the same `helm upgrade` command and the new version |
 | AWS Load Balancer Controller chart | `3.6.1` | [`gitops/staging/apps/aws-load-balancer-controller.yaml`](../gitops/staging/apps/aws-load-balancer-controller.yaml) | Bump together with its IAM policy below |
+| External Secrets chart | `2.13.0` | [`gitops/staging/apps/external-secrets.yaml`](../gitops/staging/apps/external-secrets.yaml) | Serves `external-secrets.io/v1`; check the CRD version before a major bump |
+| OpenFlows chart | `0.1.3` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
 | Smoke test image (`nginx-unprivileged`) | `1.30-alpine`, pinned by digest | [`gitops/staging/smoke/smoke.yaml`](../gitops/staging/smoke/smoke.yaml) | Test workload only |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
@@ -171,7 +173,7 @@ administrator rights, and CI checks that.
 | `openflows-<env>-coder` | Coder pods | Its own secrets and data | With the Coder chart |
 | `openflows-<env>-provisioner` | Provisioner pods | Workspace resources tagged with `Environment`, tenant ID and managed-by | With the AWS provisioner |
 | `openflows-<env>-tenant-runtime` | Tenant workspaces | Its tenant's resources only | With tenant isolation |
-| `openflows-<env>-external-secrets` | External Secrets pods | Read the environment's secrets | With Secrets Manager integration |
+| `openflows-<env>-external-secrets` | Pod `external-secrets/external-secrets` | Read `openflows/<env>/*` secrets only | Live (staging) |
 | `openflows-<env>-observability` | Metrics and log agents | Write metrics and logs | With observability |
 | `openflows-<env>-recovery` | Restore runs | Backup restore in its environment | With backup and restore |
 
@@ -179,7 +181,9 @@ The roles marked "With ..." are added through `workload_roles` in
 [`terraform/modules/eks/workloads.tf`](../terraform/modules/eks/workloads.tf)
 by the change that brings their workload, with the permissions that workload
 proves it needs. Kubernetes RBAC is separate: humans get cluster-admin or view
-through access entries today; per-namespace roles arrive with the namespaces.
+through access entries; Coder gets a Role in the `openflows` namespace only
+(`coder.rbac.namespaced`), so a compromised Coder cannot read other
+namespaces' Secrets.
 
 ## Key Flows
 
@@ -319,7 +323,21 @@ flowchart TD
 
 ## Secrets
 
-The landing zone holds no application secrets. Terraform state can contain
+Application secrets live in AWS Secrets Manager, encrypted with the account's
+AWS-managed Secrets Manager key, and reach the cluster through External
+Secrets, which reads them with the read-only `openflows-<env>-external-secrets`
+Pod Identity role. No secret value is in Git, Helm values or Terraform state.
+
+| Secrets Manager secret | Keys | Set by | Becomes Kubernetes Secret |
+|---|---|---|---|
+| `openflows/<env>/generated` | `postgresPassword`, `chatHookSecret` | Terraform, write-only (never in state) | `openflows-postgres`, `openflows-chat-hook` |
+| `openflows/<env>/provided` | `githubClientSecret` | A person ("Setting the provided secrets" in the runbook) | `openflows` |
+
+Two secrets instead of one per value keep the cost near $0.80 a month per
+environment. External Secrets refreshes them hourly. The AI gateway key is
+entered in Coder's UI for now and is not stored in Secrets Manager.
+
+Terraform state can contain
 sensitive values, so each state bucket is encrypted with its environment's
 KMS key, rejects uploads that request any other encryption, and refuses
 non-TLS access. Each bucket denies access except for its environment's plan
@@ -364,6 +382,8 @@ own bucket admits only the platform admin role and break-glass.
 | [`terraform/modules/dns/`](../terraform/modules/dns/) | Hosted zone and certificate |
 | [`gitops/staging/`](../gitops/staging/) | Argo CD Applications for staging: the Load Balancer Controller and the ingress smoke test |
 | [`gitops/argocd/`](../gitops/argocd/) | Argo CD Helm values |
+| [`gitops/staging/openflows-secrets/`](../gitops/staging/openflows-secrets/) | Secret store and ExternalSecrets for OpenFlows |
+| [`terraform/modules/app-secrets/`](../terraform/modules/app-secrets/) | Secrets Manager secrets, generated values write-only |
 | [`terraform/modules/eks/`](../terraform/modules/eks/) | EKS cluster, node group, add-ons, Pod Identity roles, and the IAM cases for the in-cluster roles |
 | [`terraform/envs/staging/`](../terraform/envs/staging/) | Staging root and inputs |
 | [`terraform/envs/production/`](../terraform/envs/production/) | Production root and inputs |

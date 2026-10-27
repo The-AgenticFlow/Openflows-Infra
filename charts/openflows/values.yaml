@@ -27,6 +27,9 @@ postgres:
   user: coder
   # password: ""            # set via existingSecret or this value
   existingSecret: ""        # name of a Secret holding `password`
+  # Data directory inside the volume. Set it (e.g. "pgdata") on block storage such as
+  # EBS, whose root holds lost+found; leave empty to keep data at the volume root.
+  pgdataSubdir: ""
   resources: {}
   persistence:
     enabled: true
@@ -77,6 +80,9 @@ coder:
   # RBAC for the kubernetes provisioner (creates workspace pods).
   rbac:
     create: true
+    # true: a Role in the release namespace, so Coder can only manage workspaces
+    # (and read Secrets) there. false keeps the cluster-wide ClusterRole.
+    namespaced: false
 
 # ── OpenFlows controller (standalone Deployment) ─────────────────────────────
 # Disabled by default: the canonical controller runs inside the nexus workspace's
@@ -149,6 +155,10 @@ secrets:
   coderSessionToken: ""
   coderAdminPassword: ""
   coderChatHookSecret: ""   # 32+ random bytes
+  # Existing Secret with key `secret` for the chat hook. Set it under GitOps tools
+  # that render without cluster access (Argo CD): `lookup` cannot reuse the live value
+  # there, so the generated secret would change on every sync.
+  chatHookExistingSecret: ""
   # Key for the AI Gateway (Coder chat). Same LLM gateway as the agents.
   aiGatewayOpenaiKey: ""
   # GitHub App

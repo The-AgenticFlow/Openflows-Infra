@@ -54,4 +54,32 @@ module "eks" {
 
   zone_id   = one(module.dns[*].zone_id) == null ? "" : one(module.dns[*].zone_id)
   zone_name = var.zone_name
+
+  workload_roles = {
+    external-secrets = {
+      namespace       = "external-secrets"
+      service_account = "external-secrets"
+      policy_json     = data.aws_iam_policy_document.external_secrets.json
+    }
+  }
+}
+
+module "app_secrets" {
+  source = "../../modules/app-secrets"
+
+  environment = local.environment
+}
+
+# Read-only, and only this environment's application secrets.
+data "aws_iam_policy_document" "external_secrets" {
+  statement {
+    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    resources = [module.app_secrets.secret_arn_pattern]
+  }
+}
+
+# Created by hand first so a teammate could fill it before this merged; adopted here.
+import {
+  to = module.app_secrets.aws_secretsmanager_secret.provided
+  id = "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/provided-67zWD5"
 }

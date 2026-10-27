@@ -19,12 +19,13 @@ resource "aws_iam_role_policy_attachment" "workload" {
   policy_arn = each.value.arn
 }
 
+# Keyed by role, never by policy content, which may be unknown until apply.
 resource "aws_iam_role_policy" "workload" {
-  for_each = { for k, v in var.workload_roles : k => v.policy_json if v.policy_json != null }
+  for_each = var.workload_roles
 
   name   = each.key
   role   = aws_iam_role.workload[each.key].id
-  policy = each.value
+  policy = each.value.policy_json
 }
 
 resource "aws_eks_pod_identity_association" "workload" {

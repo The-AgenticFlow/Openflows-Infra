@@ -343,6 +343,39 @@ pre-PR write-action sweep). Accepted Access Analyzer findings, each with its
 reason, live in
 [`terraform/bootstrap/tests/policy-findings-allowlist.json`](../terraform/bootstrap/tests/policy-findings-allowlist.json).
 
+### Setting the provided secrets
+
+`openflows/<env>/provided` is created empty by Terraform; set its values once,
+and again whenever one changes. The command prompts without echoing, so the
+values stay out of shell history and logs:
+
+```bash
+read -rs -p "GitHub App client secret: " gh; echo
+AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
+  --secret-id openflows/staging/provided \
+  --secret-string "$(jq -cn --arg gh "$gh" '{githubClientSecret:$gh}')"
+unset gh
+```
+
+External Secrets picks the change up within an hour; to apply it now:
+`kubectl -n openflows annotate externalsecret openflows force-sync=$(date +%s) --overwrite`.
+
+### Rotating the generated secrets
+
+Increase `generated_version` on `module "app_secrets"` in the environment's
+`main.tf` and merge: Terraform writes new values without storing them. Postgres
+keeps its password inside its data volume, so for a Postgres rotation run
+`ALTER USER coder PASSWORD '<new>'` in the database first. Then refresh the
+Kubernetes Secrets before restarting their consumers, or they read the old value:
+
+```bash
+for es in openflows-postgres openflows-chat-hook; do
+  kubectl -n openflows annotate externalsecret $es force-sync=$(date +%s) --overwrite
+done
+kubectl -n openflows wait externalsecret openflows-postgres openflows-chat-hook --for=condition=Ready --timeout=2m
+kubectl -n openflows rollout restart statefulset/openflows-postgres deployment/openflows-coder
+```
+
 ### Bootstrapping Argo CD
 
 Once per cluster, from a laptop tunnel or a CloudShell VPC environment as

@@ -52,7 +52,7 @@ spec:
             - name: CODER_CHAT_HOOK_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "openflows.fullname" . }}-chat-hook-secret
+                  name: {{ .Values.secrets.chatHookExistingSecret | default (printf "%s-chat-hook-secret" (include "openflows.fullname" .)) }}
                   key: secret
             {{- if .Values.secrets.slackWebhookUrl }}
             - name: SLACK_WEBHOOK_URL

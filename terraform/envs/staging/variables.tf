@@ -82,7 +82,7 @@ variable "eks_log_retention_days" {
 }
 
 variable "nat_mode" {
-  description = "Private subnet egress: \"gateway\" (managed NAT gateway) or \"instance\" (one t4g.nano NAT instance, no failover)."
+  description = "Private subnet egress: \"gateway\" (managed NAT gateway) or \"instance\" (one t4g.micro NAT instance, no failover)."
   type        = string
 }
 

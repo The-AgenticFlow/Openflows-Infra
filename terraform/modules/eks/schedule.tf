@@ -63,10 +63,11 @@ resource "aws_scheduler_schedule" "node" {
   target {
     arn      = "arn:${data.aws_partition.current.partition}:scheduler:::aws-sdk:eks:updateNodegroupConfig"
     role_arn = aws_iam_role.node_schedule[0].arn
+    # Scheduler's SDK targets take PascalCase member names, not the EKS API's camelCase.
     input = jsonencode({
-      clusterName   = module.eks.cluster_name
-      nodegroupName = local.node_group_name
-      scalingConfig = { desiredSize = each.value.desired }
+      ClusterName   = module.eks.cluster_name
+      NodegroupName = local.node_group_name
+      ScalingConfig = { DesiredSize = each.value.desired }
     })
 
     retry_policy {

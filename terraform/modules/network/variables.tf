@@ -56,7 +56,7 @@ variable "flow_log_retention_days" {
 }
 
 variable "nat_mode" {
-  description = "Egress for private subnets: \"gateway\" (managed NAT gateway, single or per AZ) or \"instance\" (one self-patching t4g.nano NAT instance in the first public subnet; about $8/month instead of $35 plus $0.048/GB, but a single instance with no failover)."
+  description = "Egress for private subnets: \"gateway\" (managed NAT gateway, single or per AZ) or \"instance\" (one self-patching t4g.micro NAT instance in the first public subnet; about $11/month instead of $35 plus $0.048/GB, but a single instance with no failover)."
   type        = string
   default     = "gateway"
 

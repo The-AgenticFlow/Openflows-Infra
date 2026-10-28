@@ -6,7 +6,7 @@ aws_account_id = "686255958454"
 vpc_cidr = "10.20.0.0/16"
 
 # Staging trades egress resilience for cost: one NAT instance instead of a NAT
-# gateway (about $8 against $35 a month plus $0.048/GB), and ALBs in two AZs.
+# gateway (about $11 against $35 a month plus $0.048/GB), and ALBs in two AZs.
 single_nat_gateway = true
 nat_mode           = "instance"
 alb_az_count       = 2

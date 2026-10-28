@@ -99,6 +99,9 @@ resource "aws_instance" "nat" {
     systemctl enable --now dnf-automatic.timer
   EOT
 
+  # A changed boot script means a new instance; the ENI, EIP and routes stay.
+  user_data_replace_on_change = true
+
   lifecycle {
     ignore_changes = [ami]
   }
@@ -111,4 +114,8 @@ resource "aws_route" "private_nat_instance" {
   route_table_id         = module.vpc.private_route_table_ids[count.index]
   destination_cidr_block = "0.0.0.0/0"
   network_interface_id   = aws_network_interface.nat[0].id
+
+  # Switching from a gateway: the VPC module's 0.0.0.0/0 route must be gone first,
+  # or AWS rejects this one with RouteAlreadyExists.
+  depends_on = [module.vpc]
 }

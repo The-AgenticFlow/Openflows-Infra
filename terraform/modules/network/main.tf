@@ -39,7 +39,7 @@ module "vpc" {
   # Subnet discovery tags for the AWS Load Balancer Controller. Public ones only
   # in the first alb_az_count AZs: every AZ an ALB spans costs a public IPv4.
   public_subnet_tags_per_az = {
-    for az in slice(local.azs, 0, var.alb_az_count) : az => { "kubernetes.io/role/elb" = "1" }
+    for az in slice(local.azs, 0, coalesce(var.alb_az_count, var.az_count)) : az => { "kubernetes.io/role/elb" = "1" }
   }
   private_subnet_tags = { "kubernetes.io/role/internal-elb" = "1" }
 

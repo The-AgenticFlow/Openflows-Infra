@@ -67,12 +67,12 @@ variable "nat_mode" {
 }
 
 variable "alb_az_count" {
-  description = "How many AZs' public subnets the Load Balancer Controller may place ALBs in (2 to az_count). Each AZ adds a public IPv4 address per ALB."
+  description = "How many AZs' public subnets the Load Balancer Controller may place ALBs in (2 to az_count, default az_count). Each AZ adds a public IPv4 address per ALB."
   type        = number
-  default     = 3
+  default     = null
 
   validation {
-    condition     = var.alb_az_count >= 2
-    error_message = "An ALB needs at least two AZs."
+    condition     = var.alb_az_count == null || (var.alb_az_count >= 2 && var.alb_az_count <= var.az_count)
+    error_message = "alb_az_count must be between 2 and az_count: an ALB needs at least two AZs."
   }
 }

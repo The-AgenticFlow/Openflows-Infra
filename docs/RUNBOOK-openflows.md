@@ -176,7 +176,8 @@ old image back does not undo them. So every upgrade starts with a dump.
 
 3. Bump `coder.tag` and the chart version in a PR, update the Version Matrix,
    and merge. Argo CD rolls `openflows-coder`.
-4. Watch the migration, then check the server answers:
+4. Watch the migration, and press Ctrl-C once the server reports it is
+   listening. Then check it answers:
 
    ```bash
    kubectl -n openflows logs deploy/openflows-coder -f | grep -i migrat
@@ -188,9 +189,11 @@ old image back does not undo them. So every upgrade starts with a dump.
 5. Sync `openflows-bootstrap` in Argo CD. It reruns `openflows bootstrap`
    against the new version; if the Job fails, roll back.
 
-If the new server keeps restarting because of database locks, scale
-`openflows-coder` to 0 and back to 1 so a single pod runs the migration alone,
-as Coder's guide recommends.
+If the new server keeps restarting because of database locks, run the
+migration in a single pod, as Coder's guide recommends. A manual scale does not
+stick under Argo CD's `selfHeal`, so use Git: merge `replicas: 0` (see the
+rollback steps below), wait until `openflows-coder` has no pods, then remove it
+again.
 
 <details>
 <summary>Rolling back to the previous Coder version</summary>
@@ -202,15 +205,21 @@ manual `kubectl scale`, so stop Coder through Git:
 1. Merge one PR that reverts the upgrade commit and sets `replicas: 0` under
    `helm.valuesObject.coder` in
    [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml).
-2. Once `openflows-coder` has no pods, restore:
+2. Once `openflows-coder` has no pods, recreate the database empty and
+   restore into it. Restoring over the upgraded database would leave tables
+   the newer version added, so start clean. `--exit-on-error` makes a failed
+   restore stop with a non-zero exit instead of half-applying:
 
    ```bash
+   kubectl -n openflows exec openflows-postgres-0 -- psql -U coder -d postgres \
+     -c 'DROP DATABASE coder WITH (FORCE)' -c 'CREATE DATABASE coder OWNER coder'
    kubectl -n openflows exec -i openflows-postgres-0 -- \
-     pg_restore -U coder -d coder --clean --if-exists < coder-<date>.dump
+     pg_restore -U coder -d coder --exit-on-error < coder-<date>.dump
    ```
 
-3. Merge a second PR that removes `coder.replicas: 0`. The old version starts
-   on the old schema.
+3. Only if the restore exited 0, merge a second PR that removes
+   `replicas: 0`. The old version starts on the old schema. If it failed, keep
+   Coder stopped and fix the restore first.
 
 Anything users did between the dump and the restore is lost.
 

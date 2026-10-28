@@ -346,16 +346,25 @@ reason, live in
 ### Setting the provided secrets
 
 `openflows/<env>/provided` is created empty by Terraform; set its values once,
-and again whenever one changes. The command prompts without echoing, so the
-values stay out of shell history and logs, and keeps the secret's other keys:
+and again whenever one changes:
+
+| Key | Value | Read by |
+|---|---|---|
+| `githubClientSecret` | Client secret of the OpenFlows GitHub App | Coder (`openflows`) |
+| `argocdGithubClientSecret` | Client secret of the `OpenFlows Argo CD <env>` GitHub App | Argo CD sign-in (`argocd-github`) |
+| `coderSessionToken` | See "Bootstrapping OpenFlows workspaces" | `openflows-bootstrap` |
+
+Set one key at a time. The command prompts without echoing, so the value stays
+out of shell history and logs, and keeps the secret's other keys:
 
 ```bash
-read -rs -p "GitHub App client secret: " gh; echo
+key=githubClientSecret   # or argocdGithubClientSecret
+read -rs -p "$key: " v; echo
 cur=$(AWS_PROFILE=openflows-admin aws secretsmanager get-secret-value --secret-id openflows/staging/provided --query SecretString --output text 2>/dev/null || echo '{}')
 AWS_PROFILE=openflows-admin aws secretsmanager put-secret-value \
   --secret-id openflows/staging/provided \
-  --secret-string "$(jq -c --arg gh "$gh" '. + {githubClientSecret:$gh}' <<<"$cur")"
-unset gh cur
+  --secret-string "$(jq -c --arg k "$key" --arg v "$v" '. + {($k): $v}' <<<"$cur")"
+unset v cur
 ```
 
 External Secrets picks the change up within an hour; to apply it now:
@@ -423,16 +432,32 @@ kubectl apply -f gitops/staging/root.yaml
 ```
 
 From then on, merging to `main` is the only way changes reach the cluster:
-`staging-root` syncs every Application in `gitops/staging/apps/`. To open the
-UI, keep the tunnel running and in another terminal:
+`staging-root` syncs every Application in `gitops/staging/apps/`. Argo CD's own
+values are the exception: rerun the `helm upgrade` above after changing
+[`gitops/argocd/values-staging.yaml`](../gitops/argocd/values-staging.yaml).
+GitHub sign-in needs the `argocd-github` Secret, which the `openflows-secrets`
+app creates from `argocdGithubClientSecret`; on a new cluster, sign-in starts
+working once that app has synced.
+
+### Using Argo CD
+
+Browse to `https://argocd.trial.openflows.dev` and choose **Log in via GitHub**.
+For the CLI:
 
 ```bash
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+argocd login argocd.trial.openflows.dev --sso --grpc-web
 ```
 
-Then browse to `http://localhost:8080` as `admin`. Delete
-`argocd-initial-admin-secret` after the first sign-in.
+Only members of the GitHub team
+[`platform-admins`](https://github.com/orgs/The-AgenticFlow/teams/platform-admins)
+get in, as Argo CD admins. Everyone else is refused at login, and there is no
+local `admin` user. The sign-in uses the org GitHub App `OpenFlows Argo CD
+staging`, which must stay installed on the org with Members read access.
+
+> [!NOTE]
+> The team holds the same people as the Coder owners. Add or remove a person in
+> both places together: the team in GitHub, the owner role in Coder's
+> **Deployment > Users**.
 
 ### Patching nodes
 
@@ -492,6 +517,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | A `ClusterSecretStore` shows `InvalidProviderConfig: no EC2 IMDS role found` | The External Secrets pod started before its Pod Identity association existed (first install), so it has no AWS credentials | `kubectl -n external-secrets rollout restart deploy/external-secrets`; the same applies to any pod whose Pod Identity association was created after it started |
 | `openflows-bootstrap` Job pod stays `CreateContainerConfigError` | `coderSessionToken` is not in `openflows/<env>/provided` yet | Store the token ("Bootstrapping OpenFlows workspaces"); the pod starts once External Secrets syncs it |
 | Bootstrap fails with no LLM models configured | No AI model in Coder yet | Add a provider and model in Coder's AI settings, then sync `openflows-bootstrap` again |
+| Argo CD refuses a GitHub login (`not in any of the required teams`) | The person is not in `platform-admins`, or the GitHub App is not installed on the org | Add them to the team; check the app under the org's **Installed GitHub Apps** |
 | `kubectl` returns `Unauthorized` | The signed-in principal has no access entry (for example the bootstrap IAM user) | Assume `openflows-platform-admin` or `openflows-readonly` first |
 | Pods stuck `ContainerCreating` with `failed to assign an IP` or a volume that will not attach, and an `explicit deny in a permissions boundary` in CloudTrail | An ENI or volume was created without `Project` and `Environment` tags | Check the VPC CNI `ADDITIONAL_ENI_TAGS` and EBS CSI `extraVolumeTags` add-on settings; run the in-cluster IAM cases in `terraform/modules/eks/tests` |
 | A stateful pod stays `Pending` after a node replacement | Its EBS volume is in a different AZ from the new node | Staging nodes use one AZ for this reason; keep `node_az_count = 1` there |

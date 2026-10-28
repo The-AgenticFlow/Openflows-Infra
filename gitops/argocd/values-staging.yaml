@@ -1,15 +1,47 @@
 # Argo CD for staging, installed once by hand (docs/RUNBOOK-aws.md, "Bootstrapping
-# Argo CD"). Single replicas and no Dex or notifications keep it small; the UI is
-# reached by port-forward through the admin tunnel, not an ingress.
-dex:
-  enabled: false
+# Argo CD"). Single replicas and no notifications keep it small. The UI sits on the
+# shared ALB; only the GitHub team platform-admins can sign in, there is no local admin.
+global:
+  domain: argocd.trial.openflows.dev
 notifications:
   enabled: false
 configs:
   params:
     server.insecure: true
+  cm:
+    admin.enabled: false
+    # Dex rejects anyone outside the team at login; the secret comes from External Secrets.
+    dex.config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: Iv23liSovCc8M645eyVZ
+            clientSecret: $argocd-github:clientSecret
+            orgs:
+              - name: The-AgenticFlow
+                teams:
+                  - platform-admins
+            teamNameField: slug
+  rbac:
+    policy.default: ""
+    policy.csv: |
+      g, The-AgenticFlow:platform-admins, role:admin
 server:
   replicas: 1
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    tls: true
+    annotations:
+      alb.ingress.kubernetes.io/group.name: openflows-staging
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
 repoServer:
   replicas: 1
 applicationSet:

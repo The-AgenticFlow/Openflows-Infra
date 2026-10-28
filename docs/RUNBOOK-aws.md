@@ -234,11 +234,12 @@ locked out, for example a bucket policy that denies everyone.
 
 ### Reaching the cluster
 
-The EKS API has a public endpoint, so a laptop reaches it directly. IAM
-authenticates every request and the access entries authorize it:
-`openflows-platform-admin` is cluster-admin, `openflows-readonly` can view.
-Without one of those roles the API refuses the call. Nodes use the private
-endpoint. Access entries live in
+The EKS API endpoint is private: only the nodes and members of the
+`openflows-<env>-cluster-admin` security group can reach it. People get in
+through an SSM tunnel from their laptop or a CloudShell VPC environment, as
+`openflows-platform-admin` (cluster-admin). `openflows-readonly` has a view
+access entry but cannot start a tunnel or CloudShell, so it only works from a
+host already inside the VPC. Access entries live in
 [`terraform/modules/eks/main.tf`](../terraform/modules/eks/main.tf); there is
 no `aws-auth` ConfigMap.
 
@@ -253,7 +254,8 @@ no `aws-auth` ConfigMap.
 
 #### First-time laptop setup
 
-1. Install the AWS CLI and `kubectl` (and `k9s` if you like it).
+1. Install the AWS CLI, `kubectl` and the
+   [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 2. Add a profile that assumes the admin role. With MFA asked by the CLI:
 
    ```ini
@@ -273,20 +275,16 @@ no `aws-auth` ConfigMap.
 #### Daily use
 
 ```bash
-# once: writes a context that calls `aws eks get-token` with the profile
-aws eks update-kubeconfig --name openflows-staging --region eu-west-1 \
-  --profile openflows-admin --alias openflows-staging
+# terminal 1: keep open
+AWS_PROFILE=openflows-admin scripts/kube-tunnel.sh staging
 
-kubectl --context openflows-staging get nodes
-k9s --context openflows-staging
+# terminal 2
+export KUBECONFIG=~/.kube/openflows.yaml AWS_PROFILE=openflows-admin
+kubectl get nodes
+kubectl -n argocd get applications
 ```
 
-#### Fallback: SSM tunnel
-
-If the public endpoint is ever turned off,
-[`scripts/kube-tunnel.sh`](../scripts/kube-tunnel.sh) (needs the
-[Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html))
-forwards
+[`scripts/kube-tunnel.sh`](../scripts/kube-tunnel.sh) forwards
 `localhost:8443` to the API through the SSM-managed
 `openflows-<env>-admin-tunnel` instance (no inbound ports, no SSH keys). It
 writes only to `~/.kube/openflows.yaml` (or `$OPENFLOWS_KUBECONFIG`), so
@@ -295,8 +293,11 @@ after heavy traffic, restart the tunnel.
 
 #### From the AWS console
 
-Open CloudShell as `openflows-platform-admin`; the default environment reaches
-the public endpoint:
+Open CloudShell, choose **Actions**, then **Create VPC environment**, and pick
+the environment's VPC, one of its private subnets and the
+`openflows-<env>-cluster-admin` security group. CloudShell's default
+environment runs outside the VPC and times out on the API. In the VPC
+environment:
 
 ```bash
 aws eks update-kubeconfig --name openflows-<env> --region eu-west-1
@@ -409,12 +410,12 @@ kubectl -n openflows rollout restart statefulset/openflows-postgres deployment/o
 
 ### Bootstrapping Argo CD
 
-Once per cluster, from a laptop or CloudShell as
+Once per cluster, from a laptop tunnel or a CloudShell VPC environment as
 `openflows-platform-admin` (see "Reaching the cluster"). The repository is
 public, so Argo CD needs no Git credential.
 
 ```bash
-kubectl config use-context openflows-staging   # the context from "Daily use"
+export KUBECONFIG=~/.kube/openflows.yaml   # laptop, with the tunnel open; skip in CloudShell
 helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm \
   --version 10.11.1 --namespace argocd --create-namespace \
   -f gitops/argocd/values-staging.yaml
@@ -487,7 +488,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
-| `kubectl` says `Unauthorized` or `You must be logged in` | The profile is not an OpenFlows role, or the MFA session expired | Refresh the MFA session, then check `aws sts get-caller-identity --profile openflows-admin` |
+| `kubectl` times out against the cluster | The endpoint is private; the session is outside the VPC or lacks the `cluster-admin` security group | Use `scripts/kube-tunnel.sh`, or a CloudShell VPC environment with the `openflows-<env>-cluster-admin` group |
 | A `ClusterSecretStore` shows `InvalidProviderConfig: no EC2 IMDS role found` | The External Secrets pod started before its Pod Identity association existed (first install), so it has no AWS credentials | `kubectl -n external-secrets rollout restart deploy/external-secrets`; the same applies to any pod whose Pod Identity association was created after it started |
 | `openflows-bootstrap` Job pod stays `CreateContainerConfigError` | `coderSessionToken` is not in `openflows/<env>/provided` yet | Store the token ("Bootstrapping OpenFlows workspaces"); the pod starts once External Secrets syncs it |
 | Bootstrap fails with no LLM models configured | No AI model in Coder yet | Add a provider and model in Coder's AI settings, then sync `openflows-bootstrap` again |

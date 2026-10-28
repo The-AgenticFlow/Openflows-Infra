@@ -22,10 +22,7 @@ locals {
 
 # AWS-0039: EKS envelope-encrypts all API data by default (AWS-owned key, 1.28+).
 # AWS-0104: nodes need egress through NAT for images and AWS APIs.
-# AWS-0040/0041: public API on purpose; IAM authenticates, access entries authorize.
 #trivy:ignore:AWS-0039
-#trivy:ignore:AWS-0040
-#trivy:ignore:AWS-0041
 #trivy:ignore:AWS-0104
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -36,8 +33,8 @@ module "eks" {
   vpc_id             = var.vpc_id
   subnet_ids         = var.control_plane_subnet_ids
 
-  # Public for people, gated by IAM and RBAC; nodes stay on the private path.
-  endpoint_public_access  = true
+  # Private only: Terraform uses EKS APIs, people use CloudShell's VPC environment.
+  endpoint_public_access  = false
   endpoint_private_access = true
 
   authentication_mode                      = "API"

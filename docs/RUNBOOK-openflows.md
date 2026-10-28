@@ -154,6 +154,68 @@ once (each rebuild bakes in the current `openflows.int` URL):
 kubectl delete svc openflows-coder-compat -n openflows
 ```
 
+### Upgrading Coder
+
+Coder is pinned by `coder.tag` in
+[`charts/openflows/values.yaml`](../charts/openflows/values.yaml); staging does
+not override it, so a chart release carries the version. The tested version is
+in the AWS architecture doc's Version Matrix. Coder runs its database
+migrations when the new server starts, and they only go forward: putting the
+old image back does not undo them. So every upgrade starts with a dump.
+
+1. Read the release notes for every minor version between the current and the
+   target tag. Prefer one minor version at a time, since bigger jumps run more
+   migrations
+   ([Coder upgrade best practices](https://coder.com/docs/install/operate/upgrade/best-practices)).
+2. Dump the database to your machine (through the SSM tunnel):
+
+   ```bash
+   kubectl -n openflows exec openflows-postgres-0 -- \
+     pg_dump -U coder -d coder -Fc > coder-$(date +%F).dump
+   ```
+
+3. Bump `coder.tag` and the chart version in a PR, update the Version Matrix,
+   and merge. Argo CD rolls `openflows-coder`.
+4. Watch the migration, then check the server answers:
+
+   ```bash
+   kubectl -n openflows logs deploy/openflows-coder -f | grep -i migrat
+   curl -fsS https://coder.trial.openflows.dev/healthz
+   ```
+
+   The Coder Deployment has no liveness probe, so a long migration is not
+   killed halfway.
+5. Sync `openflows-bootstrap` in Argo CD. It reruns `openflows bootstrap`
+   against the new version; if the Job fails, roll back.
+
+If the new server keeps restarting because of database locks, scale
+`openflows-coder` to 0 and back to 1 so a single pod runs the migration alone,
+as Coder's guide recommends.
+
+<details>
+<summary>Rolling back to the previous Coder version</summary>
+
+Reverting the tag alone leaves the database on the newer schema, so restore
+the dump from step 2 while no Coder pod runs. Argo CD's `selfHeal` undoes a
+manual `kubectl scale`, so stop Coder through Git:
+
+1. Merge one PR that reverts the upgrade commit and sets `replicas: 0` under
+   `helm.valuesObject.coder` in
+   [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml).
+2. Once `openflows-coder` has no pods, restore:
+
+   ```bash
+   kubectl -n openflows exec -i openflows-postgres-0 -- \
+     pg_restore -U coder -d coder --clean --if-exists < coder-<date>.dump
+   ```
+
+3. Merge a second PR that removes `coder.replicas: 0`. The old version starts
+   on the old schema.
+
+Anything users did between the dump and the restore is lost.
+
+</details>
+
 ## Rollback Procedure
 
 Revert the offending commit on `main` and let ArgoCD sync the reverted

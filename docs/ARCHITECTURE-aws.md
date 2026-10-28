@@ -15,7 +15,7 @@ services build on top of it.
 | State | One encrypted, versioned S3 bucket per environment and one for the bootstrap, S3 native locking |
 | Networks | `10.20.0.0/16` staging, `10.30.0.0/16` production |
 | Domains | `trial.openflows.dev` staging, `app.openflows.dev` production |
-| Kubernetes | EKS cluster `openflows-staging`, public and private API endpoints; production not built yet |
+| Kubernetes | EKS cluster `openflows-staging`, private API endpoint; production not built yet |
 | CI identity | GitHub Actions OIDC, one plan role and one apply role per environment |
 | Human access | `openflows-platform-admin` and `openflows-readonly`, both MFA only |
 | Apply path | GitHub Actions: plan on pull requests, staging on `main`, production on `v*` tags |
@@ -67,14 +67,16 @@ flowchart LR
     ALB -.-> Priv
 ```
 
-People reach the EKS API over its public endpoint, authenticated by IAM and
-authorized by access entries; nodes use the private endpoint inside the VPC. Nodes run in one private subnet. The VPC CNI uses the node
+Inside the staging VPC, the EKS control plane is reachable only from the
+private subnets. Nodes run in one private subnet. The VPC CNI uses the node
 role (`AmazonEKS_CNI_Policy`); every other add-on that calls AWS gets its own
 role through Pod Identity:
 
 ```mermaid
 flowchart LR
-    LAP["Laptop or CloudShell"] -->|"IAM role, access entry"| API["EKS API, public and private endpoints"]
+    CS["CloudShell VPC environment"] -->|"cluster-admin SG, access entry"| API["EKS API, private endpoint"]
+    LAP["Laptop"] -->|"SSM port forward"| TUN["admin-tunnel instance"]
+    TUN -->|"cluster-admin SG"| API
     TF["Apply role"] -->|"EKS APIs only"| API
     API --> NG["Managed node group, Spot, one AZ"]
     NG --> CNI["VPC CNI"]
@@ -125,7 +127,7 @@ flowchart LR
 | EKS cluster | EKS module | `terraform/modules/eks` | Private API endpoint, access entries only (cluster-admin for platform admin, view for read-only), control plane audit and authenticator logs |
 | Node group | EKS managed node group | `terraform/modules/eks` | x86 nodes on AL2023 with IMDSv2, hop limit 1, encrypted gp3 root volumes; launch template tags instances, volumes and ENIs |
 | Add-ons | EKS add-ons | `terraform/modules/eks` | VPC CNI, CoreDNS, kube-proxy, Pod Identity agent, EBS CSI driver (default StorageClass), metrics-server, ExternalDNS |
-| `openflows-<env>-cluster-admin`, `openflows-<env>-admin-tunnel` | Security group, EC2 instance | `terraform/modules/eks` | Fallback path to the private endpoint: CloudShell VPC environments and an SSM-managed `t4g.nano` that forwards a laptop port, no inbound ports |
+| `openflows-<env>-cluster-admin`, `openflows-<env>-admin-tunnel` | Security group, EC2 instance | `terraform/modules/eks` | The only non-node path to the private API: CloudShell VPC environments and an SSM-managed `t4g.nano` that forwards a laptop port, no inbound ports |
 | `openflows-<env>-ebs-csi`, `-external-dns`, `-aws-load-balancer-controller` | IAM roles | `terraform/modules/eks` | Pod Identity roles; ExternalDNS may only change the environment's zone |
 
 ## Access Model
@@ -281,14 +283,9 @@ flowchart TD
 - **Certificate validation waits are opt-in.** ACM can only validate after
   the parent domain delegates to the new zone, so `wait_for_certificate_validation`
   stays `false` until delegation is in place.
-- **The cluster API is public, gated by IAM.** Every request is authenticated
-  by IAM and authorized by RBAC, and anonymous users are bound only to
-  `system:public-info-viewer`. This is the
-  [EKS default](https://docs.aws.amazon.com/eks/latest/userguide/cluster-endpoint.html),
-  secured by IAM plus RBAC. It saves running a VPN or mesh for a few operators. Nodes
-  keep using the private endpoint, and in-cluster changes still go through
-  Argo CD. The SSM admin tunnel stays as a fallback if the public endpoint is
-  ever turned off.
+- **The cluster API is private.** Terraform needs only EKS APIs (cluster,
+  access entries, add-ons, Pod Identity); people use CloudShell's VPC
+  environment; in-cluster changes go through Argo CD.
 - **Managed node groups, not Auto Mode.** Auto Mode launches and deletes
   instances and load balancers through our cluster role, which carries the
   boundary, and tags them only `eks:*`. Managed node groups act through an

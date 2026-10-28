@@ -25,5 +25,5 @@ output "azs" {
 
 output "nat_public_ips" {
   description = "Egress IPs of the NAT gateways, for allow-lists on external services."
-  value       = module.vpc.nat_public_ips
+  value       = var.nat_mode == "gateway" ? module.vpc.nat_public_ips : aws_eip.nat[*].public_ip
 }

@@ -72,7 +72,7 @@ variable "alb_az_count" {
   default     = null
 
   validation {
-    condition     = var.alb_az_count == null || (var.alb_az_count >= 2 && var.alb_az_count <= var.az_count)
+    condition     = var.alb_az_count == null ? true : (var.alb_az_count >= 2 && var.alb_az_count <= var.az_count)
     error_message = "alb_az_count must be between 2 and az_count: an ALB needs at least two AZs."
   }
 }

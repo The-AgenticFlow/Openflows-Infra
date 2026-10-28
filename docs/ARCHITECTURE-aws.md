@@ -284,8 +284,11 @@ flowchart TD
   the parent domain delegates to the new zone, so `wait_for_certificate_validation`
   stays `false` until delegation is in place.
 - **The cluster API is private.** Terraform needs only EKS APIs (cluster,
-  access entries, add-ons, Pod Identity); people use CloudShell's VPC
-  environment; in-cluster changes go through Argo CD.
+  access entries, add-ons, Pod Identity); people use the SSM tunnel or
+  CloudShell's VPC environment; in-cluster changes go through Argo CD, whose
+  UI is the day-to-day view. A public endpoint was tried: the shared account's
+  organization refuses `eks:UpdateClusterConfig` for our apply role even
+  though our IAM policy and boundary allow it, so the endpoint stays private.
 - **Managed node groups, not Auto Mode.** Auto Mode launches and deletes
   instances and load balancers through our cluster role, which carries the
   boundary, and tags them only `eks:*`. Managed node groups act through an

@@ -61,7 +61,7 @@ Each environment's network spans three availability zones:
 flowchart LR
     Internet((Internet)) --> IGW[Internet gateway]
     IGW --> Pub[Public subnets, one /24 per AZ]
-    Pub --> NAT[NAT: gateway in production, t4g.nano instance in staging]
+    Pub --> NAT[NAT: gateway in production, t4g.micro instance in staging]
     Priv[Private subnets, one /20 per AZ] -->|egress| NAT
     Pub -.->|future| ALB[HTTPS load balancer]
     ALB -.-> Priv
@@ -116,7 +116,7 @@ flowchart LR
 | State buckets | S3 | `terraform/bootstrap` | One per environment plus one for the bootstrap: versioned, KMS-only uploads, public access blocked, TLS only |
 | State keys | KMS | `terraform/bootstrap` | One customer-managed key per state bucket, yearly rotation |
 | VPC | VPC module | `terraform/modules/network` | Public and private subnets across three AZs with their own route tables, flow logs to CloudWatch |
-| NAT | VPC module, `nat-instance.tf` | `terraform/modules/network` | Private subnet egress. Production: one NAT gateway per AZ. Staging (`nat_mode = "instance"`): one self-patching `t4g.nano` with an Elastic IP on its own ENI, no instance role |
+| NAT | VPC module, `nat-instance.tf` | `terraform/modules/network` | Private subnet egress. Production: one NAT gateway per AZ. Staging (`nat_mode = "instance"`): one self-patching `t4g.micro` (dnf runs out of memory on a nano) with an Elastic IP on its own ENI, no instance role |
 | Off-hours node schedule | EventBridge Scheduler, `openflows-<env>-node-schedule` role | `terraform/modules/eks/schedule.tf` | Staging only: sets the node group's desired size to 0 at 20:00 and back at 07:00 on weekdays (Africa/Douala) |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
 | Certificate | ACM | `terraform/modules/dns` | Wildcard certificate for the HTTPS ingress, validated through the zone |
@@ -316,9 +316,9 @@ flowchart TD
   Spot availability; burstable types are avoided because unlimited CPU credits
   bill extra.
 - **Staging runs only in working hours, behind a NAT instance.** The node
-  group scales to zero on weekday evenings and weekends, a `t4g.nano` NAT
+  group scales to zero on weekday evenings and weekends, a `t4g.micro` NAT
   instance replaces the NAT gateway, and ALBs span two AZs instead of three.
-  Together these cut the staging run rate from about $245 to about $160 a month
+  Together these cut the staging run rate from about $245 to about $163 a month
   (eu-west-1 list prices, 2026-10). EventBridge Scheduler changes the node group
   through the EKS API rather than scheduled actions on its Auto Scaling group,
   because EKS leaves that group untagged and the boundary would block deleting

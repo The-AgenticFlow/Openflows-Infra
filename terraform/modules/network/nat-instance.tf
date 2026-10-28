@@ -1,4 +1,4 @@
-# nat_mode = "instance": one t4g.nano forwards the private subnets' egress
+# nat_mode = "instance": one t4g.micro forwards the private subnets' egress
 # instead of a managed NAT gateway. No failover; EC2 auto-recovery restarts it on
 # host failure. Routes and the Elastic IP sit on a separate ENI that outlives it.
 # No instance role: it patches itself, and if it breaks, replace it.
@@ -57,9 +57,10 @@ resource "aws_eip" "nat" {
 }
 
 resource "aws_instance" "nat" {
-  count         = local.nat_instance
-  ami           = data.aws_ssm_parameter.al2023_arm64[0].value
-  instance_type = "t4g.nano"
+  count = local.nat_instance
+  ami   = data.aws_ssm_parameter.al2023_arm64[0].value
+  # Not t4g.nano: dnf runs out of its 512 MiB and the setup never finishes.
+  instance_type = "t4g.micro"
 
   primary_network_interface {
     network_interface_id = aws_network_interface.nat[0].id
@@ -85,7 +86,7 @@ resource "aws_instance" "nat" {
     set -euo pipefail
     echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/90-nat.conf
     sysctl --system
-    dnf install -y nftables dnf-automatic
+    dnf install -y --setopt=install_weak_deps=False nftables dnf-automatic
     cat > /etc/sysconfig/nftables.conf <<'NFT'
     table ip nat {
       chain postrouting {
@@ -102,8 +103,10 @@ resource "aws_instance" "nat" {
   # A changed boot script means a new instance; the ENI, EIP and routes stay.
   user_data_replace_on_change = true
 
+  # source_dest_check is owned by the ENI; left unignored, the provider would
+  # turn it back on and the NAT would drop forwarded traffic.
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes = [ami, source_dest_check]
   }
 
   depends_on = [aws_eip.nat]

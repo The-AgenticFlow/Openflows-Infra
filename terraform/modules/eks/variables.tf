@@ -128,3 +128,13 @@ variable "workload_roles" {
   }))
   default = {}
 }
+
+variable "node_schedule" {
+  description = "Off-hours schedule for the node group, or null to run it all the time. stop_cron sets desired size to 0, start_cron back to node_desired_size; EventBridge Scheduler cron expressions in timezone (IANA name). Needs node_min_size = 0."
+  type = object({
+    stop_cron  = string
+    start_cron = string
+    timezone   = string
+  })
+  default = null
+}

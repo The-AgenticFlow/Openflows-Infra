@@ -61,7 +61,7 @@ Each environment's network spans three availability zones:
 flowchart LR
     Internet((Internet)) --> IGW[Internet gateway]
     IGW --> Pub[Public subnets, one /24 per AZ]
-    Pub --> NAT[NAT gateways]
+    Pub --> NAT[NAT: gateway in production, t4g.nano instance in staging]
     Priv[Private subnets, one /20 per AZ] -->|egress| NAT
     Pub -.->|future| ALB[HTTPS load balancer]
     ALB -.-> Priv
@@ -116,7 +116,8 @@ flowchart LR
 | State buckets | S3 | `terraform/bootstrap` | One per environment plus one for the bootstrap: versioned, KMS-only uploads, public access blocked, TLS only |
 | State keys | KMS | `terraform/bootstrap` | One customer-managed key per state bucket, yearly rotation |
 | VPC | VPC module | `terraform/modules/network` | Public and private subnets across three AZs with their own route tables, flow logs to CloudWatch |
-| NAT gateways | VPC module | `terraform/modules/network` | Private subnet egress: one shared in staging, one per AZ in production |
+| NAT | VPC module, `nat-instance.tf` | `terraform/modules/network` | Private subnet egress. Production: one NAT gateway per AZ. Staging (`nat_mode = "instance"`): one self-patching `t4g.nano` with an Elastic IP on its own ENI, no instance role |
+| Off-hours node schedule | EventBridge Scheduler, `openflows-<env>-node-schedule` role | `terraform/modules/eks/schedule.tf` | Staging only: sets the node group's desired size to 0 at 20:00 and back at 07:00 on weekdays (Africa/Douala) |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
 | Certificate | ACM | `terraform/modules/dns` | Wildcard certificate for the HTTPS ingress, validated through the zone |
 | Permissions boundary | IAM policy | `terraform/bootstrap` | Ceiling on every OpenFlows role: IAM under `/openflows/` only, `openflows-*` buckets only, no changes to resources not tagged `Project=openflows` |
@@ -314,15 +315,26 @@ flowchart TD
   volumes attachable when a node is replaced. Several instance types improve
   Spot availability; burstable types are avoided because unlimited CPU credits
   bill extra.
+- **Staging runs only in working hours, behind a NAT instance.** The node
+  group scales to zero on weekday evenings and weekends, a `t4g.nano` NAT
+  instance replaces the NAT gateway, and ALBs span two AZs instead of three.
+  Together these cut the staging run rate from about $245 to about $160 a month
+  (eu-west-1 list prices, 2026-10). EventBridge Scheduler changes the node group
+  through the EKS API rather than scheduled actions on its Auto Scaling group,
+  because EKS leaves that group untagged and the boundary would block deleting
+  them. Production keeps NAT gateways, three AZs and always-on nodes.
 
 ## Networking
 
-- Public subnets hold only NAT gateways and, later, internet-facing load
-  balancers. Nothing gets a public IP on launch.
+- Public subnets hold only NAT (gateways or the staging NAT instance) and
+  internet-facing load balancers. Nothing gets a public IP on launch; the NAT
+  instance's Elastic IP is attached to its ENI explicitly.
 - Private subnets hold EKS nodes and data services; they reach the internet
   only through NAT.
 - Subnets carry the tags the AWS Load Balancer Controller uses to find them:
   `kubernetes.io/role/elb` on public, `kubernetes.io/role/internal-elb` on private.
+  Only the first `alb_az_count` AZs' public subnets get the `elb` tag, since
+  every AZ an ALB spans costs a public IPv4 address.
 - The VPC's default security group, network ACL and route table are left as
   AWS creates them and are not used: workloads get their own security groups
   and subnets their own route tables.
@@ -361,7 +373,9 @@ own bucket admits only the platform admin role and break-glass.
 - The org's GitHub plan cannot protect environments or branches on this private
   repository, so production is gated by the release tag and the AWS trust
   policy, not by a required reviewer.
-- Staging uses one NAT gateway, so an AZ outage cuts staging egress.
+- Staging egress is one NAT instance with no failover: if it or its AZ fails,
+  staging loses internet access until EC2 auto-recovery or a replacement
+  brings it back.
 - The default security group keeps AWS's default rules (traffic between its
   members). AWS creates it untagged, so the permissions boundary stops
   OpenFlows roles from adopting it, and it cannot be locked down from
@@ -377,6 +391,9 @@ own bucket admits only the platform admin role and break-glass.
 - Staging runs one Spot node in one AZ: a Spot reclaim or AZ outage takes
   staging down until a replacement node starts. No cluster autoscaler runs, so
   the node count is whatever `node_desired_size` says.
+- Staging is off on weekday evenings and weekends: Coder, workspaces and the
+  Argo CD UI are down until the morning start or a manual start (runbook,
+  "Off-hours node schedule").
 - Argo CD itself is installed by hand once per cluster; everything it runs is
   GitOps from `gitops/<env>/`. Changes to its own values need a manual
   `helm upgrade`.

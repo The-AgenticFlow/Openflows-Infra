@@ -54,3 +54,25 @@ variable "flow_log_retention_days" {
   type        = number
   default     = 90
 }
+
+variable "nat_mode" {
+  description = "Egress for private subnets: \"gateway\" (managed NAT gateway, single or per AZ) or \"instance\" (one self-patching t4g.nano NAT instance in the first public subnet; about $8/month instead of $35 plus $0.048/GB, but a single instance with no failover)."
+  type        = string
+  default     = "gateway"
+
+  validation {
+    condition     = contains(["gateway", "instance"], var.nat_mode)
+    error_message = "nat_mode must be \"gateway\" or \"instance\"."
+  }
+}
+
+variable "alb_az_count" {
+  description = "How many AZs' public subnets the Load Balancer Controller may place ALBs in (2 to az_count). Each AZ adds a public IPv4 address per ALB."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.alb_az_count >= 2
+    error_message = "An ALB needs at least two AZs."
+  }
+}

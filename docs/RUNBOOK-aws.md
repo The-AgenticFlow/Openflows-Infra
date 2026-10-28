@@ -477,6 +477,24 @@ Edit `node_instance_types`, `node_desired_size`, `node_min_size` or
 several instance types for Spot. No cluster autoscaler runs, so
 `node_desired_size` is the node count.
 
+### Off-hours node schedule
+
+Staging nodes stop at 20:00 on weekdays and start at 07:00 (Africa/Douala),
+so they are off nights and weekends. The times live in `node_schedule` in
+[`terraform/envs/staging/terraform.tfvars`](../terraform/envs/staging/terraform.tfvars).
+To work outside those hours, start the node by hand; the next scheduled stop
+turns it off again:
+
+```bash
+NG=$(AWS_PROFILE=openflows-admin aws eks list-nodegroups --cluster-name openflows-staging --query 'nodegroups[0]' --output text)
+AWS_PROFILE=openflows-admin aws eks update-nodegroup-config --cluster-name openflows-staging \
+  --nodegroup-name "$NG" --scaling-config desiredSize=1
+```
+
+The node takes about three minutes to join, then Argo CD, Coder and
+Postgres start on it. Postgres keeps its data on its EBS volume.
+
+
 ## Backup & Restore
 
 State buckets are versioned and keep superseded versions for 90 days. To
@@ -514,6 +532,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 |---|---|---|
 | `AWS account ID not allowed` | Credentials for a different account | Switch credentials; `allowed_account_ids` stops the run on purpose |
 | `kubectl` times out against the cluster | The endpoint is private; the session is outside the VPC or lacks the `cluster-admin` security group | Use `scripts/kube-tunnel.sh`, or a CloudShell VPC environment with the `openflows-<env>-cluster-admin` group |
+| Pods cannot pull images or reach GitHub; nodes are `NotReady` after start | The staging NAT instance is down, or the node is off outside working hours | `aws ec2 describe-instances --filters Name=tag:Name,Values=openflows-staging-nat`; if it is stopped or impaired, start it or rerun the staging apply to replace it. Outside hours, see "Off-hours node schedule" |
 | A `ClusterSecretStore` shows `InvalidProviderConfig: no EC2 IMDS role found` | The External Secrets pod started before its Pod Identity association existed (first install), so it has no AWS credentials | `kubectl -n external-secrets rollout restart deploy/external-secrets`; the same applies to any pod whose Pod Identity association was created after it started |
 | `openflows-bootstrap` Job pod stays `CreateContainerConfigError` | `coderSessionToken` is not in `openflows/<env>/provided` yet | Store the token ("Bootstrapping OpenFlows workspaces"); the pod starts once External Secrets syncs it |
 | Bootstrap fails with no LLM models configured | No AI model in Coder yet | Add a provider and model in Coder's AI settings, then sync `openflows-bootstrap` again |

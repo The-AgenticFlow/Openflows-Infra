@@ -80,3 +80,23 @@ variable "eks_log_retention_days" {
   description = "Retention of the EKS control plane log group."
   type        = number
 }
+
+variable "nat_mode" {
+  description = "Private subnet egress: \"gateway\" (managed NAT gateway) or \"instance\" (one t4g.nano NAT instance, no failover)."
+  type        = string
+}
+
+variable "alb_az_count" {
+  description = "AZs whose public subnets ALBs may use; each adds a public IPv4 address per ALB."
+  type        = number
+}
+
+variable "node_schedule" {
+  description = "Off-hours schedule for the node group (stop_cron, start_cron, timezone), or null to run it all the time. Needs node_min_size = 0."
+  type = object({
+    stop_cron  = string
+    start_cron = string
+    timezone   = string
+  })
+  default = null
+}

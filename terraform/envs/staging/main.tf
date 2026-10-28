@@ -11,6 +11,8 @@ module "network" {
   environment        = local.environment
   vpc_cidr           = var.vpc_cidr
   single_nat_gateway = var.single_nat_gateway
+  nat_mode           = var.nat_mode
+  alb_az_count       = var.alb_az_count
 
   iam_path                 = "/openflows/${local.environment}/"
   permissions_boundary_arn = local.permissions_boundary_arn
@@ -49,6 +51,7 @@ module "eks" {
   node_min_size            = var.node_min_size
   node_desired_size        = var.node_desired_size
   node_max_size            = var.node_max_size
+  node_schedule            = var.node_schedule
 
   log_retention_days = var.eks_log_retention_days
 

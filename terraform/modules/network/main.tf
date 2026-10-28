@@ -1,5 +1,5 @@
 # Environment network: one VPC across several AZs, public subnets for the
-# ALB and NAT gateways, private subnets for EKS nodes and data services.
+# ALB and NAT, private subnets for EKS nodes and data services.
 
 data "aws_availability_zones" "available" {
   state = "available"
@@ -28,15 +28,19 @@ module "vpc" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  enable_nat_gateway     = true
+  # nat_mode = "instance" routes egress through nat-instance.tf instead.
+  enable_nat_gateway     = var.nat_mode == "gateway"
   single_nat_gateway     = var.single_nat_gateway
   one_nat_gateway_per_az = !var.single_nat_gateway
 
   # Nothing public is launched into public subnets except load balancers and NAT.
   map_public_ip_on_launch = false
 
-  # Subnet discovery tags for the AWS Load Balancer Controller.
-  public_subnet_tags  = { "kubernetes.io/role/elb" = "1" }
+  # Subnet discovery tags for the AWS Load Balancer Controller. Public ones only
+  # in the first alb_az_count AZs: every AZ an ALB spans costs a public IPv4.
+  public_subnet_tags_per_az = {
+    for az in slice(local.azs, 0, var.alb_az_count) : az => { "kubernetes.io/role/elb" = "1" }
+  }
   private_subnet_tags = { "kubernetes.io/role/internal-elb" = "1" }
 
   # AWS creates the VPC's default security group, NACL and route table without

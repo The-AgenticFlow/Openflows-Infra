@@ -92,11 +92,9 @@ module "eks" {
         most_recent    = false
         before_compute = true
         # Tags the ENIs it creates in the create call, so the boundary allows attaching them.
-        # enableNetworkPolicy: the node agent enforces Kubernetes NetworkPolicy objects.
-        configuration_values = jsonencode({
-          enableNetworkPolicy = "true"
-          env                 = { ADDITIONAL_ENI_TAGS = jsonencode(var.tags) }
-        })
+        # enableNetworkPolicy is not set: the shared account's organization refuses
+        # eks:UpdateAddon, so NetworkPolicy objects are not enforced (ARCHITECTURE-aws.md).
+        configuration_values = jsonencode({ env = { ADDITIONAL_ENI_TAGS = jsonencode(var.tags) } })
       }
       eks-pod-identity-agent = {
         addon_version  = local.addon_versions["eks-pod-identity-agent"]

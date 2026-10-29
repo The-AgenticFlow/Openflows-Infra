@@ -1,0 +1,24 @@
+{{- if and .Values.postgres.enabled .Values.postgres.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openflows.fullname" . }}-postgres
+  labels:
+    {{- include "openflows.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openflows.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "openflows.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: coder
+      ports:
+        - protocol: TCP
+          port: 5432
+{{- end }}

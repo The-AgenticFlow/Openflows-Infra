@@ -106,7 +106,7 @@ flowchart LR
 | AWS Load Balancer Controller chart | `3.6.1` | [`gitops/staging/apps/aws-load-balancer-controller.yaml`](../gitops/staging/apps/aws-load-balancer-controller.yaml) | Bump together with its IAM policy below |
 | External Secrets chart | `2.13.0` | [`gitops/staging/apps/external-secrets.yaml`](../gitops/staging/apps/external-secrets.yaml) | Serves `external-secrets.io/v1`; check the CRD version before a major bump |
 | OpenFlows workspace image (bootstrap Job) | `1.3.3`, pinned by digest | [`gitops/staging/openflows-bootstrap/bootstrap.yaml`](../gitops/staging/openflows-bootstrap/bootstrap.yaml) | Carries the `openflows` binary and the templates it pushes; bump with the chart's `workspace.image` |
-| OpenFlows chart | `0.1.3` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
+| OpenFlows chart | `0.1.4` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
 ## Components
@@ -334,7 +334,12 @@ flowchart TD
 - Subnets carry the tags the AWS Load Balancer Controller uses to find them:
   `kubernetes.io/role/elb` on public, `kubernetes.io/role/internal-elb` on private.
   Only the first `alb_az_count` AZs' public subnets get the `elb` tag, since
-  every AZ an ALB spans costs a public IPv4 address.
+  every AZ an ALB spans costs a public IPv4 address. The controller keeps an existing
+  ALB's subnets, so the shared staging ALB is also pinned by the
+  `alb.ingress.kubernetes.io/subnets` annotation on Coder's Ingress.
+- The VPC CNI enforces Kubernetes NetworkPolicy (`enableNetworkPolicy`). Pods
+  without a policy stay open; Postgres admits only Coder on 5432
+  (`postgres.networkPolicy.enabled` in the chart).
 - The VPC's default security group, network ACL and route table are left as
   AWS creates them and are not used: workloads get their own security groups
   and subnets their own route tables.

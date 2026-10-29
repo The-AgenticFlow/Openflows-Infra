@@ -21,6 +21,8 @@ spec:
         postgres:
           existingSecret: openflows-postgres
           pgdataSubdir: pgdata
+          networkPolicy:
+            enabled: true
         secrets:
           chatHookExistingSecret: openflows-chat-hook
         coder:
@@ -45,6 +47,9 @@ spec:
               alb.ingress.kubernetes.io/ssl-redirect: "443"
               alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
               alb.ingress.kubernetes.io/healthcheck-path: /healthz
+              # Pins the shared ALB to two AZs (each AZ costs a public IPv4). The
+              # controller keeps an existing ALB's subnets, so tags alone do not move it.
+              alb.ingress.kubernetes.io/subnets: openflows-staging-public-eu-west-1a, openflows-staging-public-eu-west-1b
             tls:
               enabled: true
   destination:

@@ -30,6 +30,10 @@ postgres:
   # Data directory inside the volume. Set it (e.g. "pgdata") on block storage such as
   # EBS, whose root holds lost+found; leave empty to keep data at the volume root.
   pgdataSubdir: ""
+  # Admit only Coder on 5432. Needs a CNI that enforces NetworkPolicy (on EKS:
+  # VPC CNI with enableNetworkPolicy), otherwise the policy is ignored.
+  networkPolicy:
+    enabled: false
   resources: {}
   persistence:
     enabled: true

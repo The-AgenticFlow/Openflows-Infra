@@ -265,8 +265,9 @@ flowchart TD
   their tags, so the Manager can create and manage its own untagged secrets
   under `openflows/<env>/manager/`. The two human roles have no `Environment`
   tag and carry the same limit across environments as an inline policy
-  (`terraform/bootstrap/roles.tf`); CI fails a bootstrap change that adds any
-  other untagged role. `ListSecrets`, `GetRandomPassword` and `DescribeSecret`
+  (`terraform/bootstrap/roles.tf`) that also forces them to tag every role they
+  create, so no child role escapes the rule. CI fails a bootstrap change that
+  adds any other untagged role. `ListSecrets`, `GetRandomPassword` and `DescribeSecret`
   stay open; `BatchGetSecretValue` needs `GetSecretValue` on every secret it
   returns ([AWS](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_BatchGetSecretValue.html)).
 - **CI trust pinned to refs, not GitHub environments.** Private repositories

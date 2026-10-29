@@ -263,6 +263,31 @@ data "aws_iam_policy_document" "human_secrets" {
     actions       = local.secret_actions
     not_resources = ["${local.secret_arn}/*"]
   }
+
+  # Every role a human creates carries an Environment tag, so the boundary's rule covers it too.
+  statement {
+    sid       = "TagNewRoles"
+    effect    = "Deny"
+    actions   = ["iam:CreateRole"]
+    resources = ["*"]
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/Environment"
+      values   = ["true"]
+    }
+  }
+
+  statement {
+    sid       = "KeepEnvironmentTag"
+    effect    = "Deny"
+    actions   = ["iam:UntagRole"]
+    resources = ["*"]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["Environment"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "platform_admin_secrets" {

@@ -19,7 +19,9 @@ def aws(*args):
 def roles_from_plan(path):
     for rc in json.load(open(path))["resource_changes"]:
         if rc["type"] == "aws_iam_role":
-            after = rc["change"]["after"] or {}
+            after = rc["change"]["after"]
+            if after is None:  # the role is being deleted
+                continue
             yield after["name"], after.get("tags") or {}
 
 

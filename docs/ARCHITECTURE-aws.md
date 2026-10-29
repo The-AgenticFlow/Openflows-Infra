@@ -337,9 +337,13 @@ flowchart TD
   every AZ an ALB spans costs a public IPv4 address. The controller keeps an existing
   ALB's subnets, so the shared staging ALB is also pinned by the
   `alb.ingress.kubernetes.io/subnets` annotation on Coder's Ingress.
-- The VPC CNI enforces Kubernetes NetworkPolicy (`enableNetworkPolicy`). Pods
-  without a policy stay open; Postgres admits only Coder on 5432
-  (`postgres.networkPolicy.enabled` in the chart).
+- Kubernetes NetworkPolicy is **not enforced** on the cluster. The VPC CNI can
+  enforce it with the `enableNetworkPolicy` add-on setting, but the shared
+  account's organization refuses `eks:UpdateAddon` (the same unexplained
+  AccessDenied as for the API endpoint, for the pipeline role and for
+  platform-admin), so the setting cannot be applied. The chart still renders a
+  Postgres policy that admits only Coder on 5432 (`postgres.networkPolicy.enabled`);
+  it takes effect once enforcement is available.
 - The VPC's default security group, network ACL and route table are left as
   AWS creates them and are not used: workloads get their own security groups
   and subnets their own route tables.
@@ -378,6 +382,9 @@ own bucket admits only the platform admin role and break-glass.
 - The org's GitHub plan cannot protect environments or branches on this private
   repository, so production is gated by the release tag and the AWS trust
   policy, not by a required reviewer.
+- NetworkPolicy objects are not enforced (see Networking), so pods can reach
+  each other freely until enforcement is enabled or another policy engine is
+  installed. Tenant isolation depends on this.
 - Staging egress is one NAT instance with no failover: if it or its AZ fails,
   staging loses internet access until EC2 auto-recovery or a replacement
   brings it back.

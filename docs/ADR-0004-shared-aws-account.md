@@ -24,7 +24,10 @@ from each other and from the other projects, comes from layers Terraform owns:
 - **Permissions boundary:** every OpenFlows role carries
   `openflows-permissions-boundary`. Whatever a role's own policies allow, it
   can only manage IAM under the `/openflows/` path, only use `openflows-*` S3
-  buckets, and only change or read secrets of resources tagged
+  buckets, and only manage secrets named `openflows/<its environment>/...`
+  (decided by name, because the Manager creates its secrets without tags; the
+  human roles, which have no `Environment` tag, carry the same limit as an
+  inline policy). It can only change resources tagged
   `Project=openflows`. A role can only create roles that carry the same
   boundary, cannot remove it, and cannot change the bootstrap's roles, the
   GitHub OIDC provider or the boundary itself. Tags can only be written while

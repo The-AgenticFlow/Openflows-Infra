@@ -81,7 +81,7 @@ region         = eu-west-1
 ```
 
 Both roles carry the permissions boundary, so they cannot touch other
-projects' IAM roles, buckets or untagged resources. They also cannot change
+projects' IAM roles, buckets, untagged resources or secrets outside `openflows/`. They also cannot change
 the bootstrap's own roles, the GitHub OIDC provider or the boundary: apply
 `terraform/bootstrap` as a principal without the boundary (the bootstrap
 user before hand-over, an organization administrator, or the account root).
@@ -198,9 +198,18 @@ cd terraform/bootstrap
 terraform plan -out=tfplan
 tests/render-policies.sh tfplan
 python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
+python3 tests/iam_policy_tests.py tests/environment-role-cases.json
+python3 tests/iam_policy_tests.py tests/secrets-by-name-cases.json
+python3 tests/iam_policy_tests.py tests/human-secrets-cases.json
+python3 tests/untagged_roles.py --plan <(terraform show -json tfplan)
+python3 tests/boundary_size.py
 ```
 
-Every case must pass. Add a case for each new rule, both the deny it is meant
+`secrets-by-name-cases.json` covers every Secrets Manager action for an
+environment role, `human-secrets-cases.json` the two human roles, and
+`untagged_roles.py` fails when a role has no `Environment` tag and no secrets
+policy, and `boundary_size.py` when the boundary outgrows IAM's limit. Every
+case must pass. Add a case for each new rule, both the deny it is meant
 to cause and an allow that must keep working. Once the roles exist, add
 `--principal <staging-apply-role-arn>` to test the live role's attached
 policies and boundary instead of the rendered files.
@@ -542,7 +551,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
 | A stateful pod stays `Pending` after a node replacement | Its EBS volume is in a different AZ from the new node | Staging nodes use one AZ for this reason; keep `node_az_count = 1` there |
 | `Error acquiring the state lock` | An interrupted run left its `.tflock` object | Confirm no run is active, then `terraform force-unlock <lock-id>` |
 | `AccessDenied` on the state bucket | Principal is not one of the environment's roles or a break-glass principal | Use the environment's role, or add the principal to `state_break_glass_principal_arns` and apply bootstrap |
-| `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, a resource not tagged `Project=openflows`, or a bootstrap-managed role | Name and tag the resource as OpenFlows; for bootstrap changes, apply as a principal without the boundary |
+| `AccessDenied ... explicit deny in a permissions boundary` | The action touches IAM outside `/openflows/`, a bucket not named `openflows-*`, a resource not tagged `Project=openflows`, a secret not named `openflows/<your environment>/...`, or a bootstrap-managed role | Name and tag the resource as OpenFlows; for bootstrap changes, apply as a principal without the boundary |
 | `AccessDenied ... explicit deny in an identity-based policy` from an apply role | The resource, IAM path or bucket belongs to the other environment, or a new log group is named outside `/openflows/<env>/` and `/aws/eks/openflows-<env>/` | Tag the resource with the right `Environment`, put roles under `/openflows/<env>/`, name buckets `openflows-<env>-*` |
 | GitHub Actions `Not authorized to perform sts:AssumeRoleWithWebIdentity` | The job runs from a ref the role does not trust, sets `environment:`, or the repository's OIDC subject prefix changed | Plans: pull requests or `main`. Staging apply: `main`. Production apply: a `v*` tag. Do not set `environment:` on these jobs. Compare `sub_claim_prefix` from `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` with `github_oidc_subject_prefix` in the bootstrap |
 | Apply hangs on `aws_acm_certificate_validation` | The parent domain does not delegate to the zone yet | Add the NS records, or set `wait_for_certificate_validation = false` |

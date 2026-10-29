@@ -254,6 +254,29 @@ resource "aws_iam_role" "platform_admin" {
   max_session_duration = 14400
 }
 
+# The boundary limits roles that carry an Environment tag to their own environment's secrets.
+# The human roles have none, so they get the same limit across environments here.
+data "aws_iam_policy_document" "human_secrets" {
+  statement {
+    sid           = "SecretsByName"
+    effect        = "Deny"
+    actions       = local.secret_actions
+    not_resources = ["${local.secret_arn}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "platform_admin_secrets" {
+  name   = "secrets-by-name"
+  role   = aws_iam_role.platform_admin.id
+  policy = data.aws_iam_policy_document.human_secrets.json
+}
+
+resource "aws_iam_role_policy" "readonly_secrets" {
+  name   = "secrets-by-name"
+  role   = aws_iam_role.readonly.id
+  policy = data.aws_iam_policy_document.human_secrets.json
+}
+
 resource "aws_iam_role_policy_attachment" "platform_admin" {
   role       = aws_iam_role.platform_admin.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"

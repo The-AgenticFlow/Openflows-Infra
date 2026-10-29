@@ -178,10 +178,13 @@
       "expect": "deny"
     },
     {
-      "name": "outwards: cannot read an untagged secret",
+      "name": "outwards: cannot read another project's secret",
       "action": "secretsmanager:GetSecretValue",
       "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
-      "expect": "deny"
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
     },
     {
       "name": "must work: set retention on a staging log group before its tags are visible",

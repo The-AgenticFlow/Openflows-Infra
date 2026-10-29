@@ -120,7 +120,7 @@ flowchart LR
 | Off-hours node schedule | EventBridge Scheduler, `openflows-<env>-node-schedule` role | `terraform/modules/eks/schedule.tf` | Staging only: sets the node group's desired size to 0 at 20:00 and back at 07:00 on weekdays (Africa/Douala) |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
 | Certificate | ACM | `terraform/modules/dns` | Wildcard certificate for the HTTPS ingress, validated through the zone |
-| Permissions boundary | IAM policy | `terraform/bootstrap` | Ceiling on every OpenFlows role: IAM under `/openflows/` only, `openflows-*` buckets only, no changes to resources not tagged `Project=openflows` |
+| Permissions boundary | IAM policy | `terraform/bootstrap` | Ceiling on every OpenFlows role: IAM under `/openflows/` only, `openflows-*` buckets only, no changes to resources not tagged `Project=openflows`, secrets only by name (`openflows/<env>/...`) |
 | GitHub OIDC provider | IAM | `terraform/bootstrap` | Lets GitHub Actions assume AWS roles without stored keys |
 | `openflows-<env>-terraform-plan` | IAM role | `terraform/bootstrap` | Read-only plans from pull requests and `main` |
 | `openflows-<env>-terraform-apply` | IAM role | `terraform/bootstrap` | Applies: staging from `main`, production from `v*` tags; limited to its own environment's tags, IAM path and buckets |
@@ -260,6 +260,15 @@ flowchart TD
 - **A permissions boundary on every role.** The account hosts other
   projects, so OpenFlows roles are capped by a boundary rather than trusted
   to have narrow policies. Apply roles hold `AdministratorAccess` inside it.
+- **Secrets are protected by name, not by tag.** A role with an `Environment`
+  tag can use only secrets named `openflows/<its environment>/...`, whatever
+  their tags, so the Manager can create and manage its own untagged secrets
+  under `openflows/<env>/manager/`. The two human roles have no `Environment`
+  tag and carry the same limit across environments as an inline policy
+  (`terraform/bootstrap/roles.tf`); CI fails a bootstrap change that adds any
+  other untagged role. `ListSecrets`, `GetRandomPassword` and `DescribeSecret`
+  stay open; `BatchGetSecretValue` needs `GetSecretValue` on every secret it
+  returns ([AWS](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_BatchGetSecretValue.html)).
 - **CI trust pinned to refs, not GitHub environments.** Private repositories
   on the current GitHub plan cannot protect environments, so the AWS trust
   policy is the gate: production apply only from `v*` tags.
@@ -398,8 +407,13 @@ own bucket admits only the platform admin role and break-glass.
 - Editing the permissions boundary needs a principal without it (the
   bootstrap operator or the account root).
 - The boundary is close to IAM's 6,144-character limit for managed policies
-  (about 6,120). The next rule added there will need the boundary split, for
-  example into one boundary per environment.
+  (about 6,020, so about 120 characters of room). A role has one boundary, so
+  a rule that does not fit needs the boundary split, for example into one per
+  environment. Statement ids are kept short for this reason.
+- Secrets outside `openflows/<env>/` are out of reach for OpenFlows roles, so a
+  secret AWS creates for us under another name, such as an RDS-managed master
+  password (`rds!...`), cannot be read by them. Choose another way to supply
+  such a credential, or extend the name rule in the boundary, before relying on it.
 - Staging runs one Spot node in one AZ: a Spot reclaim or AZ outage takes
   staging down until a replacement node starts. No cluster autoscaler runs, so
   the node count is whatever `node_desired_size` says.

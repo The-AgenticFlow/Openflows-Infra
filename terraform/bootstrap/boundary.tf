@@ -29,7 +29,7 @@ locals {
     local.boundary_arn,
   ]
 
-  # Changes and secret reads that must only ever hit OpenFlows resources (and,
+  # Changes and parameter reads that must only ever hit OpenFlows resources (and,
   # for apply roles, only their own environment's).
   protected_change_actions = [
     "ec2:Assign*", "ec2:Unassign*",
@@ -45,8 +45,6 @@ locals {
     "elasticloadbalancing:AddListenerCertificates", "elasticloadbalancing:RemoveListenerCertificates",
     "autoscaling:Delete*", "autoscaling:Update*",
     "kms:ScheduleKeyDeletion", "kms:DisableKey", "kms:PutKeyPolicy",
-    "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
-    "secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
     "ssm:GetParameter*", "ssm:PutParameter", "ssm:DeleteParameter*",
   ]
 
@@ -54,6 +52,16 @@ locals {
   # created, before IAM sees its tags. EKS fixes its own name, /aws/eks/<cluster>/.
   log_group_change_actions = ["logs:DeleteLogGroup", "logs:PutRetentionPolicy"]
   log_group_arn            = "arn:aws:logs:*:${var.aws_account_id}:log-group"
+
+  # Secrets are decided by name, not tags: the Manager creates its own, untagged. Verbs by first
+  # letter (Cancel/Create, Put, Remove/Replicate/Restore/Rotate, Stop, Tag, Untag/Update) plus the
+  # named reads; ListSecrets, GetRandomPassword and Describe* take no secret value and stay open.
+  secret_actions = [
+    "secretsmanager:C*", "secretsmanager:Delete*", "secretsmanager:GetResourcePolicy",
+    "secretsmanager:GetSecretValue", "secretsmanager:P*", "secretsmanager:R*",
+    "secretsmanager:S*", "secretsmanager:T*", "secretsmanager:U*",
+  ]
+  secret_arn = "arn:aws:secretsmanager:*:${var.aws_account_id}:secret:openflows"
 
   # AWS-owned public parameters (EKS AMI IDs) have no account and no tags.
   aws_public_parameters = "arn:aws:ssm:*::parameter/aws/service/*"
@@ -67,7 +75,6 @@ locals {
     "elasticloadbalancing:AddTags", "elasticloadbalancing:RemoveTags",
     "autoscaling:CreateOrUpdateTags", "autoscaling:DeleteTags",
     "kms:TagResource", "kms:UntagResource",
-    "secretsmanager:TagResource", "secretsmanager:UntagResource",
     "ssm:AddTagsToResource", "ssm:RemoveTagsFromResource",
     "logs:TagResource", "logs:UntagResource", "logs:TagLogGroup", "logs:UntagLogGroup",
     "tag:TagResources", "tag:UntagResources",
@@ -76,7 +83,7 @@ locals {
 
 data "aws_iam_policy_document" "boundary" {
   statement {
-    sid       = "AllowWithinBoundary"
+    sid       = "Allow"
     effect    = "Allow"
     actions   = ["*"]
     resources = ["*"]
@@ -85,7 +92,7 @@ data "aws_iam_policy_document" "boundary" {
   # Creating a service-linked role (EKS, load balancing) carries
   # iam:AWSServiceName, so it is the one write allowed outside /openflows/.
   statement {
-    sid           = "DenyIamWritesOutsideOpenflows"
+    sid           = "IamOutside"
     effect        = "Deny"
     actions       = local.iam_write_actions
     not_resources = local.openflows_iam_resources
@@ -97,7 +104,7 @@ data "aws_iam_policy_document" "boundary" {
   }
 
   statement {
-    sid       = "ProtectBootstrapIam"
+    sid       = "BootstrapIam"
     effect    = "Deny"
     actions   = local.iam_write_actions
     resources = local.bootstrap_iam_resources
@@ -106,7 +113,7 @@ data "aws_iam_policy_document" "boundary" {
   # A role created by an OpenFlows role must carry this same boundary, so no
   # role can mint a less restricted one.
   statement {
-    sid       = "RequireBoundaryOnNewRoles"
+    sid       = "NewRoleBoundary"
     effect    = "Deny"
     actions   = ["iam:CreateRole", "iam:PutRolePermissionsBoundary"]
     resources = ["*"]
@@ -118,14 +125,14 @@ data "aws_iam_policy_document" "boundary" {
   }
 
   statement {
-    sid       = "KeepBoundaryOnRoles"
+    sid       = "KeepBoundary"
     effect    = "Deny"
     actions   = ["iam:DeleteRolePermissionsBoundary"]
     resources = ["*"]
   }
 
   statement {
-    sid           = "DenyS3OutsideOpenflows"
+    sid           = "S3Outside"
     effect        = "Deny"
     actions       = ["s3:*"]
     not_resources = ["arn:aws:s3:::openflows-*", "arn:aws:s3:::openflows-*/*"]
@@ -134,7 +141,7 @@ data "aws_iam_policy_document" "boundary" {
   # Untagged resources (other projects' resources) fail the tag check too,
   # because a missing tag never equals "openflows".
   statement {
-    sid           = "DenyChangesToOtherProjectsResources"
+    sid           = "OtherProjects"
     effect        = "Deny"
     actions       = local.protected_change_actions
     not_resources = [local.aws_public_parameters]
@@ -145,9 +152,23 @@ data "aws_iam_policy_document" "boundary" {
     }
   }
 
+  # Environment roles reach only openflows/<their environment>/ secrets. Roles without the
+  # tag (the human ones) get the same limit, across environments, in roles.tf.
+  statement {
+    sid           = "SecretsByName"
+    effect        = "Deny"
+    actions       = local.secret_actions
+    not_resources = ["${local.secret_arn}/$${aws:PrincipalTag/Environment}/*"]
+    condition {
+      test     = "Null"
+      variable = "aws:PrincipalTag/Environment"
+      values   = ["false"]
+    }
+  }
+
   # Log groups outside /openflows/ (which predate it) still need the project tag.
   statement {
-    sid           = "DenyLogGroupChangesOutsideOpenflows"
+    sid           = "LogGroups"
     effect        = "Deny"
     actions       = local.log_group_change_actions
     not_resources = ["${local.log_group_arn}:/openflows/*", "${local.log_group_arn}:/aws/eks/openflows-*"]
@@ -161,7 +182,7 @@ data "aws_iam_policy_document" "boundary" {
   # Tagging is allowed while a resource is being created (EC2 sets
   # ec2:CreateAction then) or on a resource that is already OpenFlows'.
   statement {
-    sid       = "DenyRetaggingOtherProjectsResources"
+    sid       = "ProjectRetag"
     effect    = "Deny"
     actions   = local.tag_write_actions
     resources = ["*"]
@@ -180,7 +201,7 @@ data "aws_iam_policy_document" "boundary" {
   # Environment roles (tagged Environment by their root) only change their own
   # environment. Untagged roles (platform admin, read-only) span both.
   statement {
-    sid           = "DenyOtherEnvChanges"
+    sid           = "OtherEnv"
     effect        = "Deny"
     actions       = local.protected_change_actions
     not_resources = [local.aws_public_parameters]
@@ -197,7 +218,7 @@ data "aws_iam_policy_document" "boundary" {
   }
 
   statement {
-    sid       = "DenyOtherEnvRetag"
+    sid       = "EnvRetag"
     effect    = "Deny"
     actions   = local.tag_write_actions
     resources = ["*"]

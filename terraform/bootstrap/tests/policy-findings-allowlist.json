@@ -2,7 +2,7 @@
   {
     "policy": "openflows-permissions-boundary",
     "issueCode": "PASS_ROLE_WITH_STAR_IN_ACTION_AND_RESOURCE",
-    "sid": "AllowWithinBoundary",
+    "sid": "Allow",
     "reason": "A permissions boundary is a ceiling, not a grant: it allows everything and the deny statements carve it down. iam:PassRole is limited by DenyIamWritesOutsideOpenflows."
   },
   {

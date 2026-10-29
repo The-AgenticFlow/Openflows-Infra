@@ -97,6 +97,10 @@ jobs:
           bash tests/render-policies.sh "${RUNNER_TEMP}/bootstrap.tfplan"
           python3 tests/iam_policy_tests.py tests/staging-apply-cases.json
           python3 tests/iam_policy_tests.py tests/environment-role-cases.json
+          python3 tests/iam_policy_tests.py tests/secrets-by-name-cases.json
+          python3 tests/iam_policy_tests.py tests/human-secrets-cases.json
+          python3 tests/untagged_roles.py --plan "${RUNNER_TEMP}/bootstrap.json"
+          python3 tests/boundary_size.py
 
       - name: IAM cases against the live staging apply role and boundary
         if: steps.bootstrap.outputs.changed == 'false'
@@ -112,6 +116,10 @@ jobs:
           aws iam get-policy-version --policy-arn "$BOUNDARY_ARN" --version-id "$version" --query PolicyVersion.Document --output json > tests/rendered/boundary.json
           echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' > tests/rendered/admin.json
           python3 tests/iam_policy_tests.py tests/environment-role-cases.json
+          python3 tests/iam_policy_tests.py tests/secrets-by-name-cases.json
+          python3 tests/iam_policy_tests.py tests/human-secrets-cases.json \
+            --principal "arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/openflows/openflows-platform-admin"
+          python3 tests/untagged_roles.py
 
       # The roles inside the cluster run under the live boundary too; tagging decides what they may touch.
       - name: IAM cases for the cluster's in-cluster roles

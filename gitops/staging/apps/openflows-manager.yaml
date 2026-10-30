@@ -37,6 +37,8 @@ spec:
           CODER_URL: https://coder.trial.openflows.dev
           # Staging runs this Coder patch version; the Manager defaults to v2.37.3 and would report not ready.
           OPENFLOWS_CODER_VERSION_BASELINE: v2.37.1
+          # The shared config falls back to localhost when REDIS_URL is unset, and the pod then crash-loops.
+          REDIS_URL: redis://openflows-redis:6379
           OPENFLOWS_REDIS_ADMIN_URL: redis://openflows-redis:6379
           OPENFLOWS_RUNTIME_REDIS_URL: redis://openflows-redis:6379
           OPENFLOWS_RUNTIME_MANAGER_URL: http://openflows-manager.openflows.svc.cluster.local:3002

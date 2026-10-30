@@ -131,6 +131,7 @@ not a shared credential.
 | Coder pod crash-loops | GitHub App client secret empty | Set `secrets.githubClientSecret` before install |
 | `openflows-manager-setup` job fails with a missing operator token or secret | `coder-operator-token` (or a GitHub secret) is not in `openflows/staging/manager/` | Create it ("Deploying the Manager"), then sync the app again |
 | Manager pod restarts, logs `hosted mode requires ...` | A required setting or secret reference is missing from the app's values | The message names it; add it to `gitops/staging/apps/openflows-manager.yaml` |
+| `openflows-manager-setup` job fails with `.well-known/oauth-authorization-server returned HTTP 403` | Coder's `oauth2` experiment is off | Include `oauth2` in `coder.experiments` in `gitops/staging/apps/openflows.yaml`; Coder restarts, then the next sync retries setup |
 | `/ready` is unavailable and names Coder | Coder's version does not start with `OPENFLOWS_CODER_VERSION_BASELINE` | Set the baseline to the running Coder version, or upgrade Coder and the baseline together |
 | GitHub webhook deliveries fail with a signature error | The webhook secret differs between the app's settings and Secrets Manager | Set both to the same value and restart the Manager |
 | Controller not receiving hooks | Hook URL/secret mismatch | Check `CODER_CHAT_HOOK_URL` and `CODER_CHAT_HOOK_SECRET` |

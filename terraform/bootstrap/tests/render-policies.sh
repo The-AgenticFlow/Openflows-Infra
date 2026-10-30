@@ -11,5 +11,6 @@ json="$(terraform -chdir="$(dirname "$0")/.." show -json "$plan")"
 jq -r '.resource_changes[] | select(.address == "aws_iam_policy.boundary") | .change.after.policy' <<<"$json" | jq . >"$out/boundary.json"
 jq -r '.resource_changes[] | select(.address == "aws_iam_role_policy.terraform_apply_environment[\"staging\"]") | .change.after.policy' <<<"$json" | jq . >"$out/staging-environment-isolation.json"
 # Apply roles hold AdministratorAccess; the boundary and isolation deny do the limiting.
+jq -r '.resource_changes[] | select(.address == "aws_iam_role_policy.platform_admin_secrets") | .change.after.policy' <<<"$json" | jq . >"$out/human-secrets.json"
 echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' | jq . >"$out/admin.json"
 echo "rendered policies into $out"

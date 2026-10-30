@@ -1,0 +1,70 @@
+# The OpenFlows Manager: control-plane service for hosted tenants. Its own app so a Manager
+# failure never holds up Coder. Needs the secrets in openflows/staging/manager/ (runbook).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openflows-manager
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/The-AgenticFlow/Openflows-Infra
+    targetRevision: main
+    path: charts/openflows-manager
+    helm:
+      valuesObject:
+        image:
+          tag: develop-ce95142
+          digest: sha256:03bd9a0c08261bfef96df1fc50c16a845e8fe3459ac5c35e62b315fff085e29a
+        publicUrl: https://manager.trial.openflows.dev
+        config:
+          AWS_REGION: eu-west-1
+          OPENFLOWS_AWS_SECRETS_PREFIX: openflows/staging/manager
+          OPENFLOWS_GITHUB_CLIENT_ID: Iv23liEqS0pUwTcGdbh8
+          OPENFLOWS_GITHUB_APP_ID: "5538936"
+          OPENFLOWS_GITHUB_APP_SLUG: openflows-manager-staging
+          OPENFLOWS_GITHUB_CLIENT_SECRET_REF: github-client-secret
+          OPENFLOWS_GITHUB_PRIVATE_KEY_REF: github-private-key
+          OPENFLOWS_GITHUB_WEBHOOK_SECRET_REF: github-webhook-secret
+          OPENFLOWS_CRYPTO_MASTER_KEY_REF: crypto-master-key
+          OPENFLOWS_CODER_HOOK_SECRET_REF: coder-hook-secret
+          OPENFLOWS_CODER_OPERATOR_TOKEN_REF: coder-operator-token
+          OPENFLOWS_CODER_OAUTH_CLIENT_SECRET_REF: coder-oauth-client-secret
+          CODER_URL: https://coder.trial.openflows.dev
+          # Staging runs this Coder patch version; the Manager defaults to v2.37.3 and would report not ready.
+          OPENFLOWS_CODER_VERSION_BASELINE: v2.37.1
+          OPENFLOWS_REDIS_ADMIN_URL: redis://openflows-redis:6379
+          OPENFLOWS_RUNTIME_REDIS_URL: redis://openflows-redis:6379
+          OPENFLOWS_RUNTIME_MANAGER_URL: http://openflows-manager.openflows.svc.cluster.local:3002
+          # No relay runs yet: it carries hooks to tenant runtimes, and there are no tenants.
+          OPENFLOWS_RUNTIME_RELAY_BASE_URL: http://openflows-runtime-relay.openflows.svc.cluster.local:8080/tenants/{tenant}
+        ingress:
+          enabled: true
+          host: manager.trial.openflows.dev
+          annotations:
+            alb.ingress.kubernetes.io/group.name: openflows-staging
+            alb.ingress.kubernetes.io/scheme: internet-facing
+            alb.ingress.kubernetes.io/target-type: ip
+            alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+            alb.ingress.kubernetes.io/ssl-redirect: "443"
+            alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+            alb.ingress.kubernetes.io/healthcheck-path: /health
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

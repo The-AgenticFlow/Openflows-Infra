@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openflows-manager
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "manager.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

@@ -1,0 +1,23 @@
+name: Manager chart
+
+# Argo CD deploys this chart from main, so it is rendered with the staging values before merge.
+on:
+  pull_request:
+    paths:
+      - charts/openflows-manager/**
+      - gitops/staging/apps/openflows-manager.yaml
+      - scripts/check-manager-chart.py
+      - .github/workflows/manager-chart.yml
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Render with the staging values
+        run: python3 scripts/check-manager-chart.py

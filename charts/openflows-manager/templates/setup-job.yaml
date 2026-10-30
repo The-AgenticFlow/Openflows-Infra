@@ -1,0 +1,35 @@
+# Runs `openflows-manager setup` before the Manager starts: it creates the Manager's own keys in
+# Secrets Manager and registers its OAuth application in Coder. Idempotent. It needs the Coder
+# operator token to exist already (docs/RUNBOOK-openflows.md, "Deploying the Manager").
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openflows-manager-setup
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: setup
+          image: {{ include "manager.image" . }}
+          args: ["setup"]
+          env:
+            {{- include "manager.env" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "manager.securityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

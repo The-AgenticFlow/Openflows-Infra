@@ -129,6 +129,10 @@ not a shared credential.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Coder pod crash-loops | GitHub App client secret empty | Set `secrets.githubClientSecret` before install |
+| `openflows-manager-setup` job fails with a missing operator token or secret | `coder-operator-token` (or a GitHub secret) is not in `openflows/staging/manager/` | Create it ("Deploying the Manager"), then sync the app again |
+| Manager pod restarts, logs `hosted mode requires ...` | A required setting or secret reference is missing from the app's values | The message names it; add it to `gitops/staging/apps/openflows-manager.yaml` |
+| `/ready` is unavailable and names Coder | Coder's version does not start with `OPENFLOWS_CODER_VERSION_BASELINE` | Set the baseline to the running Coder version, or upgrade Coder and the baseline together |
+| GitHub webhook deliveries fail with a signature error | The webhook secret differs between the app's settings and Secrets Manager | Set both to the same value and restart the Manager |
 | Controller not receiving hooks | Hook URL/secret mismatch | Check `CODER_CHAT_HOOK_URL` and `CODER_CHAT_HOOK_SECRET` |
 | Workspaces not provisioning | Provisioner RBAC missing | Confirm `coder-rbac.yaml` applied |
 | Postgres password changed on upgrade | Not pinned | Set `postgres.password` or `postgres.existingSecret` |
@@ -153,6 +157,67 @@ once (each rebuild bakes in the current `openflows.int` URL):
 ```bash
 kubectl delete svc openflows-coder-compat -n openflows
 ```
+
+### Deploying the Manager
+
+The Manager runs as its own Argo CD app, `openflows-manager`
+([`gitops/staging/apps/openflows-manager.yaml`](../gitops/staging/apps/openflows-manager.yaml)).
+A sync runs three steps in order: a database job creates the `openflows_manager`
+role and the `openflows_control_plane` database on the shared PostgreSQL, a
+setup job runs `openflows-manager setup`, then the Deployment starts.
+
+Before the first sync, these must exist in Secrets Manager (eu-west-1), all
+under `openflows/staging/manager/`:
+
+| Secret | What it is | Who creates it |
+|---|---|---|
+| `github-client-secret`, `github-private-key`, `github-webhook-secret` | Credentials of the `OpenFlows Manager staging` GitHub App | A person, from the app's settings page |
+| `coder-operator-token` | A Coder API token of an owner account, created under Account, Tokens in Coder. Use a long lifetime and a name such as `openflows-manager` | A person |
+
+`setup` then creates `crypto-master-key`, `coder-hook-secret` and
+`coder-oauth-client-secret` itself and registers the Manager's OAuth
+application in Coder. It refuses to run without the operator token, and it does
+not adopt an existing Coder installation by creating an administrator for you.
+
+Check it after a sync:
+
+```bash
+kubectl -n openflows get pods -l app.kubernetes.io/name=openflows-manager
+curl -fsS https://manager.trial.openflows.dev/health
+curl -sS https://manager.trial.openflows.dev/ready
+kubectl -n openflows exec deploy/openflows-manager -- openflows-manager doctor
+```
+
+`/health` only says the process is up; `/ready` also checks the Manager's
+dependencies and names the one that fails. `doctor` runs read-only checks and
+exits non-zero if any fails. Run it inside the Deployment, as above, so it
+uses the deployed settings and the Manager's AWS role; a separate pod would
+check different ones. The setup job can be rerun from the Argo CD UI (sync the
+app), and the database job likewise.
+
+To rotate the Manager's database password, in this order, because the
+Kubernetes Secret refreshes only hourly:
+
+1. Increase `manager_db_version` in
+   [`terraform/modules/app-secrets/variables.tf`](../terraform/modules/app-secrets/variables.tf)
+   (or set it in the staging root) and merge; the pipeline writes the new
+   password.
+2. Refresh the Kubernetes Secret and confirm it changed:
+   `kubectl -n openflows annotate externalsecret openflows-manager force-sync=$(date +%s) --overwrite`,
+   then check the `openflows-manager` Secret's `password` differs from before.
+3. Sync the `openflows-manager` app so the database job sets the role's
+   password to the new value.
+4. Restart the Manager so it reads the new URL:
+   `kubectl -n openflows rollout restart deploy/openflows-manager`.
+
+Skipping step 2 makes the job write the old password back; skipping step 4
+leaves the running Manager on the old one.
+
+To rotate a GitHub App credential, put the new value on the same secret name
+(`put-secret-value`), then restart the Deployment so it reads it:
+`kubectl -n openflows rollout restart deploy/openflows-manager`. Rotate the
+webhook secret in the app's settings and in Secrets Manager together; one
+mismatch makes every delivery fail.
 
 ### Upgrading Coder
 

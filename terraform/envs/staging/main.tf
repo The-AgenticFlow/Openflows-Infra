@@ -64,6 +64,11 @@ module "eks" {
       service_account = "external-secrets"
       policy_json     = data.aws_iam_policy_document.external_secrets.json
     }
+    manager = {
+      namespace       = "openflows"
+      service_account = "openflows-manager"
+      policy_json     = module.app_secrets.manager_policy_json
+    }
   }
 }
 

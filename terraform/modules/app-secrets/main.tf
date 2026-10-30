@@ -28,6 +28,25 @@ resource "aws_secretsmanager_secret_version" "generated" {
   secret_string_wo_version = var.generated_version
 }
 
+# The Manager's database password. Its own secret: a new key in "generated" would need a version
+# bump that rewrites, and so rotates, the Coder database password too.
+ephemeral "random_password" "manager_postgres" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "manager_db" {
+  name                    = "openflows/${var.environment}/manager-db"
+  description             = "Password of the OpenFlows Manager's PostgreSQL role."
+  recovery_window_in_days = var.recovery_window_in_days
+}
+
+resource "aws_secretsmanager_secret_version" "manager_db" {
+  secret_id                = aws_secretsmanager_secret.manager_db.id
+  secret_string_wo         = jsonencode({ password = ephemeral.random_password.manager_postgres.result })
+  secret_string_wo_version = var.manager_db_version
+}
+
 # Filled in by a person (docs/RUNBOOK-aws.md, "Setting the provided secrets");
 # Terraform never sees the values.
 resource "aws_secretsmanager_secret" "provided" {

@@ -27,6 +27,8 @@ spec:
           chatHookExistingSecret: openflows-chat-hook
         coder:
           accessUrl: https://coder.trial.openflows.dev
+          # The Manager registers its OAuth application in Coder, which Coder gates behind the oauth2 experiment.
+          experiments: agent-lifecycle-hooks,oauth2
           # Workspaces run in this namespace (templates' artifacts_namespace), so
           # Coder needs no cluster-wide rights, Secrets included.
           rbac:

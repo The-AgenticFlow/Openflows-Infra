@@ -392,6 +392,8 @@ own bucket admits only the platform admin role and break-glass.
 
 ## Known Limitations
 
+- Coder runs with the `oauth2` experiment enabled (`coder.experiments` in the staging values), which the
+  Manager needs to register its OAuth application. Coder marks experiments as not ready for production.
 - The Manager runs against a Coder two patch versions older than the one it is
   tested with, and the Manager's hosted tenants need Coder organizations, which
   the free Coder edition lacks. Until Coder Premium or a different provisioning

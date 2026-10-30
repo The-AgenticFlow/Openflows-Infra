@@ -185,13 +185,33 @@ Check it after a sync:
 kubectl -n openflows get pods -l app.kubernetes.io/name=openflows-manager
 curl -fsS https://manager.trial.openflows.dev/health
 curl -sS https://manager.trial.openflows.dev/ready
-kubectl -n openflows run doctor --rm -it --restart=Never --image=<the image digest> --command -- openflows-manager doctor
+kubectl -n openflows exec deploy/openflows-manager -- openflows-manager doctor
 ```
 
 `/health` only says the process is up; `/ready` also checks the Manager's
 dependencies and names the one that fails. `doctor` runs read-only checks and
-exits non-zero if any fails. The setup job can be rerun from the Argo CD UI
-(sync the app), and the database job likewise.
+exits non-zero if any fails. Run it inside the Deployment, as above, so it
+uses the deployed settings and the Manager's AWS role; a separate pod would
+check different ones. The setup job can be rerun from the Argo CD UI (sync the
+app), and the database job likewise.
+
+To rotate the Manager's database password, in this order, because the
+Kubernetes Secret refreshes only hourly:
+
+1. Increase `manager_db_version` in
+   [`terraform/modules/app-secrets/variables.tf`](../terraform/modules/app-secrets/variables.tf)
+   (or set it in the staging root) and merge; the pipeline writes the new
+   password.
+2. Refresh the Kubernetes Secret and confirm it changed:
+   `kubectl -n openflows annotate externalsecret openflows-manager force-sync=$(date +%s) --overwrite`,
+   then check the `openflows-manager` Secret's `password` differs from before.
+3. Sync the `openflows-manager` app so the database job sets the role's
+   password to the new value.
+4. Restart the Manager so it reads the new URL:
+   `kubectl -n openflows rollout restart deploy/openflows-manager`.
+
+Skipping step 2 makes the job write the old password back; skipping step 4
+leaves the running Manager on the old one.
 
 To rotate a GitHub App credential, put the new value on the same secret name
 (`put-secret-value`), then restart the Deployment so it reads it:

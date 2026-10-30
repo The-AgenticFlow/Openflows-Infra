@@ -1,0 +1,6 @@
+apiVersion: v2
+name: openflows-manager
+description: OpenFlows Manager, the control-plane service for hosted tenants
+type: application
+version: 0.1.0
+appVersion: "develop-ce95142"

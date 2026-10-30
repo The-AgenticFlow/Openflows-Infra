@@ -1,0 +1,56 @@
+# Image, pinned by digest: the digest is what runs, the tag is only a label.
+image:
+  repository: ghcr.io/the-agenticflow/openflows-manager
+  tag: ""
+  digest: ""
+
+replicas: 1
+
+# Public HTTPS origin of this Manager (OPENFLOWS_PUBLIC_URL).
+publicUrl: ""
+
+# Settings passed through as environment variables, none secret.
+config:
+  OPENFLOWS_MODE: hosted
+  OPENFLOWS_SECRET_PROVIDER: aws-secrets-manager
+  OPENFLOWS_AUTH_COOKIE_SECURE: "true"
+  OPENFLOWS_PROVISIONER_BACKEND: kubernetes
+  OPENFLOWS_RELEASE_CACHE_DIR: /tmp/release-cache
+
+serviceAccount:
+  # Bound to an AWS role by EKS Pod Identity (terraform/modules/eks workload_roles).
+  name: openflows-manager
+
+# The Manager's own database on the in-cluster PostgreSQL.
+database:
+  host: openflows-postgres
+  port: 5432
+  name: openflows_control_plane
+  user: openflows_manager
+  # Secret holding the PostgreSQL superuser password (key "password").
+  adminSecret: openflows-postgres
+  adminUser: coder
+  # Secret with password and databaseUrl, created by External Secrets (gitops/staging/openflows-secrets).
+  managerSecret: openflows-manager
+  postgresImage: postgres:16-alpine
+
+service:
+  port: 3002
+
+ingress:
+  enabled: false
+  className: alb
+  host: ""
+  annotations: {}
+  tls:
+    enabled: true
+
+# uid/gid of the "openflows" user in the image.
+runAs: 999
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi

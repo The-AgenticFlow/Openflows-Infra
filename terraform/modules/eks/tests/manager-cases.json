@@ -1,0 +1,541 @@
+{
+  "identity_policies": [
+    "rendered/manager.json"
+  ],
+  "boundary_policies": [
+    "rendered/boundary.json"
+  ],
+  "cases": [
+    {
+      "name": "must work: CreateSecret on its own secret",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: DescribeSecret on its own secret",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: GetSecretValue on its own secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: PutSecretValue on its own secret",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: DeleteSecret on its own secret",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must work: CreateSecret by name, before AWS adds the suffix",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/new-secret",
+      "expect": "allow",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot CreateSecret on the generated secret",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/generated-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DescribeSecret on the generated secret",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/generated-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot GetSecretValue on the generated secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/generated-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot PutSecretValue on the generated secret",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/generated-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DeleteSecret on the generated secret",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/generated-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot CreateSecret on the provided secret",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/provided-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DescribeSecret on the provided secret",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/provided-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot GetSecretValue on the provided secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/provided-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot PutSecretValue on the provided secret",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/provided-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DeleteSecret on the provided secret",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/provided-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot CreateSecret on its own database password secret",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-db-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DescribeSecret on its own database password secret",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-db-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot GetSecretValue on its own database password secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-db-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot PutSecretValue on its own database password secret",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-db-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DeleteSecret on its own database password secret",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-db-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot CreateSecret on a name without the prefix slash",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DescribeSecret on a name without the prefix slash",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot GetSecretValue on a name without the prefix slash",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot PutSecretValue on a name without the prefix slash",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DeleteSecret on a name without the prefix slash",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot CreateSecret on a production secret",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/production/manager/x-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DescribeSecret on a production secret",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/production/manager/x-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot GetSecretValue on a production secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/production/manager/x-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot PutSecretValue on a production secret",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/production/manager/x-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DeleteSecret on a production secret",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/production/manager/x-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot CreateSecret on another project's secret",
+      "action": "secretsmanager:CreateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DescribeSecret on another project's secret",
+      "action": "secretsmanager:DescribeSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot GetSecretValue on another project's secret",
+      "action": "secretsmanager:GetSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot PutSecretValue on another project's secret",
+      "action": "secretsmanager:PutSecretValue",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "outwards: cannot DeleteSecret on another project's secret",
+      "action": "secretsmanager:DeleteSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:other-app-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: RotateSecret is not granted, even on its own secret",
+      "action": "secretsmanager:RotateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: TagResource is not granted, even on its own secret",
+      "action": "secretsmanager:TagResource",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: UntagResource is not granted, even on its own secret",
+      "action": "secretsmanager:UntagResource",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: UpdateSecret is not granted, even on its own secret",
+      "action": "secretsmanager:UpdateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: PutResourcePolicy is not granted, even on its own secret",
+      "action": "secretsmanager:PutResourcePolicy",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: DeleteResourcePolicy is not granted, even on its own secret",
+      "action": "secretsmanager:DeleteResourcePolicy",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: RestoreSecret is not granted, even on its own secret",
+      "action": "secretsmanager:RestoreSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: ReplicateSecretToRegions is not granted, even on its own secret",
+      "action": "secretsmanager:ReplicateSecretToRegions",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: CancelRotateSecret is not granted, even on its own secret",
+      "action": "secretsmanager:CancelRotateSecret",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: GetResourcePolicy is not granted, even on its own secret",
+      "action": "secretsmanager:GetResourcePolicy",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: UpdateSecretVersionStage is not granted, even on its own secret",
+      "action": "secretsmanager:UpdateSecretVersionStage",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: StopReplicationToReplica is not granted, even on its own secret",
+      "action": "secretsmanager:StopReplicationToReplica",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: RemoveRegionsFromReplication is not granted, even on its own secret",
+      "action": "secretsmanager:RemoveRegionsFromReplication",
+      "resource": "arn:aws:secretsmanager:eu-west-1:686255958454:secret:openflows/staging/manager/crypto-master-key-AbCdEf",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must never: ListSecrets is not granted",
+      "action": "secretsmanager:ListSecrets",
+      "resource": "*",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must never: GetRandomPassword is not granted",
+      "action": "secretsmanager:GetRandomPassword",
+      "resource": "*",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "must never: BatchGetSecretValue is not granted",
+      "action": "secretsmanager:BatchGetSecretValue",
+      "resource": "*",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: kms:Decrypt is not granted",
+      "action": "kms:Decrypt",
+      "resource": "arn:aws:kms:eu-west-1:686255958454:key/00000000-0000-0000-0000-000000000000",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: iam:CreateRole is not granted",
+      "action": "iam:CreateRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/helper",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: iam:PassRole is not granted",
+      "action": "iam:PassRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/staging/helper",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: sts:AssumeRole is not granted",
+      "action": "sts:AssumeRole",
+      "resource": "arn:aws:iam::686255958454:role/openflows/openflows-platform-admin",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: s3:GetObject is not granted",
+      "action": "s3:GetObject",
+      "resource": "arn:aws:s3:::openflows-tfstate-staging-686255958454/terraform.tfstate",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: ec2:RunInstances is not granted",
+      "action": "ec2:RunInstances",
+      "resource": "*",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    },
+    {
+      "name": "upwards: ssm:GetParameter is not granted",
+      "action": "ssm:GetParameter",
+      "resource": "arn:aws:ssm:eu-west-1:686255958454:parameter/anything",
+      "expect": "deny",
+      "context": {
+        "aws:PrincipalTag/Environment": "staging"
+      }
+    }
+  ]
+}

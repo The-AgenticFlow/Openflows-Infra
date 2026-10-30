@@ -9,6 +9,11 @@ import sys
 
 BLOCKING = {"ERROR", "SECURITY_WARNING"}
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Template variables in the policy files, with stand-ins that make them valid documents.
+PLACEHOLDERS = {
+    "${zone_arn}": "arn:aws:route53:::hostedzone/Z0EXAMPLE",
+    "${manager_secret_arn}": "arn:aws:secretsmanager:eu-west-1:123456789012:secret:openflows/staging/manager/*",
+}
 
 
 def validate(name, document, policy_type, resource_type=None):
@@ -66,7 +71,9 @@ def policies(plan_path, files, include_live):
     if include_live:
         yield from live()
     for path in files:
-        text = open(path).read().replace("${zone_arn}", "arn:aws:route53:::hostedzone/Z0EXAMPLE")
+        text = open(path).read()
+        for placeholder, stand_in in PLACEHOLDERS.items():
+            text = text.replace(placeholder, stand_in)
         yield os.path.basename(path), text, "IDENTITY_POLICY", None
 
 

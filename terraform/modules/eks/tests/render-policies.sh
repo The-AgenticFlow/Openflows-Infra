@@ -23,4 +23,6 @@ fetch "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy" ebs-csi.js
 cp "$(dirname "$0")/../policies/aws-load-balancer-controller.json" "$out/aws-load-balancer-controller.json"
 # The same template Terraform renders, with a stand-in zone the cases refer to.
 sed 's#${zone_arn}#arn:aws:route53:::hostedzone/Z0ENVIRONMENTZONE#' "$(dirname "$0")/../policies/external-dns.json.tftpl" >"$out/external-dns.json"
+# The Manager's role policy template, with a stand-in for its secret prefix.
+sed "s#\${manager_secret_arn}#arn:aws:secretsmanager:eu-west-1:${account}:secret:openflows/staging/manager/*#" "$(dirname "$0")/../../app-secrets/policies/manager.json.tftpl" >"$out/manager.json"
 echo "rendered policies into $out"

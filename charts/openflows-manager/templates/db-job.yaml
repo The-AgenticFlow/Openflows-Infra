@@ -1,0 +1,53 @@
+# Creates the Manager's role and database on the shared PostgreSQL. Idempotent: a rerun sets the
+# role's password to the secret's current value, which is how a rotation reaches the database.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openflows-manager-db
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: {{ .Values.database.postgresImage }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              export PGPASSWORD="${ADMIN_PASSWORD}"
+              psql -h "{{ .Values.database.host }}" -p {{ .Values.database.port }} -U "{{ .Values.database.adminUser }}" -d postgres -v ON_ERROR_STOP=1 \
+                -v role="{{ .Values.database.user }}" -v db="{{ .Values.database.name }}" -v pw="${MANAGER_PASSWORD}" <<'SQL'
+              SELECT format('CREATE ROLE %I LOGIN', :'role') WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'role')
+              \gexec
+              SELECT format('ALTER ROLE %I PASSWORD %L', :'role', :'pw')
+              \gexec
+              SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'role') WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db')
+              \gexec
+              SQL
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.adminSecret }}
+                  key: password
+            - name: MANAGER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.managerSecret }}
+                  key: password
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault

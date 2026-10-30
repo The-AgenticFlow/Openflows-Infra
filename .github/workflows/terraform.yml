@@ -130,7 +130,7 @@ jobs:
           BOUNDARY: ${{ steps.bootstrap.outputs.changed == 'true' && '../../bootstrap/tests/rendered/boundary.json' || '' }}
         run: |
           bash tests/render-policies.sh "${BOUNDARY}"
-          for c in cni ebs-csi lbc external-dns; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
+          for c in cni ebs-csi lbc external-dns manager; do python3 ../../bootstrap/tests/iam_policy_tests.py "tests/${c}-cases.json"; done
 
       # Every policy we own, live and (for a bootstrap change) as it would apply.
       - name: IAM Access Analyzer policy validation
@@ -140,7 +140,7 @@ jobs:
           PLAN_JSON: ${{ steps.bootstrap.outputs.changed == 'true' && format('{0}/bootstrap.json', runner.temp) || '' }}
         run: |
           python3 tests/validate_policies.py --live ${PLAN_JSON:+--plan "$PLAN_JSON"} \
-            ../modules/eks/policies/aws-load-balancer-controller.json ../modules/eks/policies/external-dns.json.tftpl
+            ../modules/eks/policies/aws-load-balancer-controller.json ../modules/eks/policies/external-dns.json.tftpl ../modules/app-secrets/policies/manager.json.tftpl
 
       - name: No workload role is an administrator
         if: github.ref_type != 'tag'

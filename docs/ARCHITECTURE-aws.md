@@ -106,6 +106,9 @@ flowchart LR
 | AWS Load Balancer Controller chart | `3.6.1` | [`gitops/staging/apps/aws-load-balancer-controller.yaml`](../gitops/staging/apps/aws-load-balancer-controller.yaml) | Bump together with its IAM policy below |
 | External Secrets chart | `2.13.0` | [`gitops/staging/apps/external-secrets.yaml`](../gitops/staging/apps/external-secrets.yaml) | Serves `external-secrets.io/v1`; check the CRD version before a major bump |
 | OpenFlows workspace image (bootstrap Job) | `1.3.3`, pinned by digest | [`gitops/staging/openflows-bootstrap/bootstrap.yaml`](../gitops/staging/openflows-bootstrap/bootstrap.yaml) | Carries the `openflows` binary and the templates it pushes; bump with the chart's `workspace.image` |
+| OpenFlows Manager chart | `0.1.0` | [`charts/openflows-manager/Chart.yaml`](../charts/openflows-manager/Chart.yaml), values in [`gitops/staging/apps/openflows-manager.yaml`](../gitops/staging/apps/openflows-manager.yaml) | Deployed as its own Argo CD app |
+| OpenFlows Manager image | `develop-ce95142`, pinned by digest | [`gitops/staging/apps/openflows-manager.yaml`](../gitops/staging/apps/openflows-manager.yaml) | Published by the `Docker Publish Manager` workflow in the `openflows` repository; deploy by digest, bump tag and digest together |
+| Coder version the Manager expects | `v2.37.1` (the Manager's own default is `v2.37.3`) | `OPENFLOWS_CODER_VERSION_BASELINE` in the same file | Must match the Coder that runs; raise both when Coder is upgraded |
 | OpenFlows chart | `0.1.4` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
@@ -116,6 +119,7 @@ flowchart LR
 | State buckets | S3 | `terraform/bootstrap` | One per environment plus one for the bootstrap: versioned, KMS-only uploads, public access blocked, TLS only |
 | State keys | KMS | `terraform/bootstrap` | One customer-managed key per state bucket, yearly rotation |
 | VPC | VPC module | `terraform/modules/network` | Public and private subnets across three AZs with their own route tables, flow logs to CloudWatch |
+| Manager pod role | `openflows-<env>-manager`, Pod Identity | [`terraform/modules/app-secrets/policies/manager.json.tftpl`](../terraform/modules/app-secrets/policies/manager.json.tftpl) | Create, describe, read, write and delete secrets named `openflows/<env>/manager/*`, nothing else. The role's cases are in `terraform/modules/eks/tests/manager-cases.json` |
 | NAT | VPC module, `nat-instance.tf` | `terraform/modules/network` | Private subnet egress. Production: one NAT gateway per AZ. Staging (`nat_mode = "instance"`): one self-patching `t4g.micro` (dnf runs out of memory on a nano) with an Elastic IP on its own ENI, no instance role |
 | Off-hours node schedule | EventBridge Scheduler, `openflows-<env>-node-schedule` role | `terraform/modules/eks/schedule.tf` | Staging only: sets the node group's desired size to 0 at 20:00 and back at 07:00 on weekdays (Africa/Douala) |
 | Hosted zone | Route 53 | `terraform/modules/dns` | Public DNS for the environment's domain |
@@ -371,6 +375,8 @@ Pod Identity role. No secret value is in Git, Helm values or Terraform state.
 |---|---|---|---|
 | `openflows/<env>/generated` | `postgresPassword`, `chatHookSecret` | Terraform, write-only (never in state) | `openflows-postgres`, `openflows-chat-hook` |
 | `openflows/<env>/provided` | `githubClientSecret`, `coderSessionToken`, `argocdGithubClientSecret` | A person ("Setting the provided secrets" in the runbook) | `openflows`, `openflows-bootstrap`, `argocd-github` (in `argocd`) |
+| `openflows/<env>/manager-db` | `password` | Terraform, write-only (never in state) | `openflows-manager` (with the database URL built from it) |
+| `openflows/<env>/manager/*` | `github-client-secret`, `github-private-key`, `github-webhook-secret`, `coder-operator-token` by a person; `crypto-master-key`, `coder-hook-secret`, `coder-oauth-client-secret` by the Manager's `setup` | The Manager's own role reads them at runtime ("Deploying the Manager" in the OpenFlows runbook) | none: the Manager reads them from AWS, not through External Secrets |
 
 Two secrets instead of one per value keep the cost near $0.80 a month per
 environment. External Secrets refreshes them hourly. The AI gateway key is
@@ -385,6 +391,15 @@ and apply roles, the platform admin role, and
 own bucket admits only the platform admin role and break-glass.
 
 ## Known Limitations
+
+- The Manager runs against a Coder two patch versions older than the one it is
+  tested with, and the Manager's hosted tenants need Coder organizations, which
+  the free Coder edition lacks. Until Coder Premium or a different provisioning
+  design is decided, the Manager runs but cannot create tenants.
+- No runtime relay is deployed, so lifecycle hooks cannot reach tenant
+  workspaces; the Manager's relay setting points at a service that does not exist.
+- The Manager's database lives on the same single PostgreSQL instance as
+  Coder's: one volume, one restore, no separate backup.
 
 - Each environment's zone only works once the parent `openflows.dev` zone
   delegates to it with NS records. That parent zone lives in the Cloudflare

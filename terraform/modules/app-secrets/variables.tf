@@ -14,3 +14,9 @@ variable "recovery_window_in_days" {
   type        = number
   default     = 7
 }
+
+variable "manager_db_version" {
+  description = "Version of the Manager database password. Increase it to rotate it, then rerun the Manager's database job."
+  type        = number
+  default     = 1
+}

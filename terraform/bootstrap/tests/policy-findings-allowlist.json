@@ -7,21 +7,9 @@
   },
   {
     "policy": "openflows-permissions-boundary",
-    "issueCode": "PASS_ROLE_WITH_STAR_IN_ACTION_AND_RESOURCE",
-    "sid": "AllowWithinBoundary",
-    "reason": "Same statement under its earlier id, still live until the bootstrap is applied."
-  },
-  {
-    "policy": "openflows-permissions-boundary",
     "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
     "sid": "OtherProjects",
     "reason": "Fail-closed: the few ec2/rds/autoscaling actions without aws:ResourceTag never carry the key, so StringNotEquals matches and they are always denied (simulator: explicitDeny without tags)."
-  },
-  {
-    "policy": "openflows-permissions-boundary",
-    "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
-    "sid": "DenyChangesToOtherProjectsResources",
-    "reason": "Same statement under its earlier id, still live until the bootstrap is applied."
   },
   {
     "policy": "openflows-permissions-boundary",
@@ -32,32 +20,14 @@
   {
     "policy": "openflows-permissions-boundary",
     "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
-    "sid": "DenyRetaggingOtherProjectsResources",
-    "reason": "Same statement under its earlier id, still live until the bootstrap is applied."
-  },
-  {
-    "policy": "openflows-permissions-boundary",
-    "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
     "sid": "OtherEnv",
     "reason": "Fail-closed, as OtherProjects."
   },
   {
     "policy": "openflows-permissions-boundary",
     "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
-    "sid": "DenyOtherEnvChanges",
-    "reason": "Same statement under its earlier id, still live until the bootstrap is applied."
-  },
-  {
-    "policy": "openflows-permissions-boundary",
-    "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
     "sid": "EnvRetag",
     "reason": "Fail-closed, as ProjectRetag."
-  },
-  {
-    "policy": "openflows-permissions-boundary",
-    "issueCode": "DENY_WITH_UNSUPPORTED_TAG_CONDITION_KEY_FOR_SERVICE",
-    "sid": "DenyOtherEnvRetag",
-    "reason": "Same statement under its earlier id, still live until the bootstrap is applied."
   },
   {
     "policy": "environment-isolation on each terraform-apply role",

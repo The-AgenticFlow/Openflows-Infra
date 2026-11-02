@@ -1,0 +1,25 @@
+# The Coder provisioner for the test organization. Wave 4: Coder (wave 2) must be up first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openflows-provisioner
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/The-AgenticFlow/Openflows-Infra
+    targetRevision: main
+    path: gitops/staging/openflows-provisioner
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true

@@ -352,6 +352,18 @@ pre-PR write-action sweep). Accepted Access Analyzer findings, each with its
 reason, live in
 [`terraform/bootstrap/tests/policy-findings-allowlist.json`](../terraform/bootstrap/tests/policy-findings-allowlist.json).
 
+### Provisioners for Coder organizations
+
+The Manager waits for a Coder provisioner authenticated with the key `openflows-provisioner-<Coder org id>` in every organization it creates; until one is online the organization stays in `provisioning`. The `openflows-provisioner-reconciler` Deployment (namespace `openflows`) provides it: every 60 seconds it lists the Coder organizations named `of-*` and, for any without a `prov-<first 8 characters of the org id>` Deployment and Secret, creates the key and starts a provisioner pod.
+
+| Situation | Check or fix |
+|---|---|
+| Organization stuck in `provisioning` | `kubectl logs -n openflows deploy/openflows-provisioner-reconciler`, then `kubectl get deploy -n openflows -l app.kubernetes.io/name=openflows-provisioner`; retry the `org.provision` operation from the Manager console once the pod runs |
+| Rebuild one organization's provisioner | Delete its `prov-*` Deployment and Secret; the reconciler recreates the key and pod within a minute |
+| Remove an organization | Delete its `prov-*` Deployment and Secret by hand; the reconciler does not clean up |
+
+It signs in with the Coder token in the `openflows-bootstrap` Secret, so rotating that token rotates the reconciler's access. This is a stopgap for per-tenant isolated provisioners.
+
 ### Setting the provided secrets
 
 `openflows/<env>/provided` is created empty by Terraform; set its values once,
@@ -362,7 +374,6 @@ and again whenever one changes:
 | `githubClientSecret` | Client secret of the OpenFlows GitHub App | Coder (`openflows`) |
 | `argocdGithubClientSecret` | Client secret of the `OpenFlows Argo CD <env>` GitHub App | Argo CD sign-in (`argocd-github`) |
 | `coderSessionToken` | See "Bootstrapping OpenFlows workspaces" | `openflows-bootstrap` |
-| `provisionerKey` | The provisioner key `openflows-provisioner-<Coder organization id>`, created with `POST /api/v2/organizations/<id>/provisionerkeys` using the operator token | The test organization's provisioner (`openflows-provisioner`) |
 
 Set one key at a time. The command prompts without echoing, so the value stays
 out of shell history and logs, and keeps the secret's other keys:

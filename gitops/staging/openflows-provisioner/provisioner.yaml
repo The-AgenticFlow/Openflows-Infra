@@ -1,55 +1,129 @@
-# Stopgap: one Coder provisioner for the staging test organization. The Manager waits for a
-# daemon authenticated with this organization's key; Coder's built-in provisioners only serve
-# the default organization. Per-tenant, isolated provisioners come with the AWS provisioner backend.
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
+# Stopgap reconciler: gives every Coder organization the Manager creates (names starting "of-")
+# its own provisioner. The Manager waits for a daemon authenticated with the key
+# openflows-provisioner-<Coder org id>, and Coder's built-in provisioners only serve the default
+# organization. Per-tenant, isolated provisioners come with the AWS provisioner backend.
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: openflows-provisioner-key
-spec:
-  refreshInterval: 1h
-  secretStoreRef: { kind: ClusterSecretStore, name: aws-secrets-manager }
-  target: { name: openflows-provisioner-key }
-  data:
-    - secretKey: key
-      remoteRef: { key: openflows/staging/provided, property: provisionerKey }
+  name: openflows-provisioner-reconciler
+---
+# Reuses the Role the Coder chart creates: workspace pods, secrets and deployments in this namespace only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openflows-provisioner-reconciler
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: openflows-coder }
+subjects:
+  - { kind: ServiceAccount, name: openflows-provisioner-reconciler }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openflows-provisioner-reconciler
+data:
+  reconcile.sh: |
+    #!/usr/bin/env bash
+    # Every 60s: for each Coder org "of-*" without a provisioner Deployment and key Secret,
+    # (re)create the org's provisioner key and run one provisioner pod. Coder shows a key once,
+    # so a missing Secret means the key is deleted and created again.
+    set -uo pipefail
+    API=http://openflows-coder:7080/api/v2
+    hdr="Coder-Session-Token: ${CODER_SESSION_TOKEN}"
+    while true; do
+      orgs=$(curl -sf -H "$hdr" "$API/organizations" | jq -r '.[] | select(.name | startswith("of-")) | .id') \
+        || { echo "coder unreachable"; sleep 60; continue; }
+      for id in $orgs; do
+        n="prov-${id:0:8}"
+        if kubectl get deploy "$n" >/dev/null 2>&1 && kubectl get secret "$n" >/dev/null 2>&1; then continue; fi
+        key="openflows-provisioner-$id"
+        curl -sf -X DELETE -H "$hdr" "$API/organizations/$id/provisionerkeys/$key" >/dev/null || true
+        secret=$(curl -sf -X POST -H "$hdr" -H 'Content-Type: application/json' \
+          -d "{\"name\":\"$key\"}" "$API/organizations/$id/provisionerkeys" | jq -r .key) \
+          || { echo "key creation failed for $id"; continue; }
+        kubectl create secret generic "$n" --from-literal=key="$secret" --dry-run=client -o yaml \
+          | kubectl label --local -f - app.kubernetes.io/managed-by=openflows-provisioner-reconciler -o yaml \
+          | kubectl apply -f - || continue
+        sed "s/@NAME@/$n/g; s#@IMAGE@#${PROVISIONER_IMAGE}#g" /templates/deployment.yaml | kubectl apply -f - \
+          && echo "provisioner $n ready for org $id"
+      done
+      sleep 60
+    done
+  deployment.yaml: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: @NAME@
+      labels:
+        app.kubernetes.io/name: openflows-provisioner
+        app.kubernetes.io/managed-by: openflows-provisioner-reconciler
+    spec:
+      replicas: 1
+      selector:
+        matchLabels: { app.kubernetes.io/name: openflows-provisioner, app.kubernetes.io/instance: @NAME@ }
+      template:
+        metadata:
+          labels: { app.kubernetes.io/name: openflows-provisioner, app.kubernetes.io/instance: @NAME@ }
+        spec:
+          # Same namespaced Role as Coder: it may create workspace pods in this namespace only.
+          serviceAccountName: openflows-coder
+          containers:
+            - name: provisioner
+              image: @IMAGE@
+              # The image entrypoint already runs the server, so name the binary and the subcommand.
+              command: ["/opt/coder", "provisioner", "start"]
+              args: ["--name", "@NAME@"]
+              env:
+                - { name: CODER_URL, value: "http://openflows-coder:7080" }
+                - name: CODER_PROVISIONER_DAEMON_KEY
+                  valueFrom: { secretKeyRef: { name: @NAME@, key: key } }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { memory: 1Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: ["ALL"] }
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: openflows-provisioner-app-test-org
+  name: openflows-provisioner-reconciler
   labels:
-    app.kubernetes.io/name: openflows-provisioner
-    app.kubernetes.io/instance: app-test-org
+    app.kubernetes.io/name: openflows-provisioner-reconciler
 spec:
   replicas: 1
+  strategy: { type: Recreate }
   selector:
-    matchLabels:
-      app.kubernetes.io/name: openflows-provisioner
-      app.kubernetes.io/instance: app-test-org
+    matchLabels: { app.kubernetes.io/name: openflows-provisioner-reconciler }
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: openflows-provisioner
-        app.kubernetes.io/instance: app-test-org
+      labels: { app.kubernetes.io/name: openflows-provisioner-reconciler }
     spec:
-      # Same namespaced Role as Coder: it may create workspace pods in this namespace only.
-      serviceAccountName: openflows-coder
+      serviceAccountName: openflows-provisioner-reconciler
       containers:
-        - name: provisioner
-          # Keep in step with the Coder server tag in charts/openflows/values.yaml.
-          image: ghcr.io/coder/coder:v2.37.1
-          # The image entrypoint already runs the server, so name the binary and the subcommand.
-          command: ["/opt/coder", "provisioner", "start"]
-          args: ["--name", "app-test-org"]
+        - name: reconciler
+          # kubectl, curl, jq and bash in one image; pinned by digest.
+          image: alpine/k8s:1.33.13@sha256:e521cee1f1cb8699bc6e906b4ce6fe50e84addae97f52d5dcf05d3974002ac26
+          command: ["bash", "/scripts/reconcile.sh"]
           env:
-            - name: CODER_URL
-              value: http://openflows-coder:7080
-            - name: CODER_PROVISIONER_DAEMON_KEY
-              valueFrom:
-                secretKeyRef: { name: openflows-provisioner-key, key: key }
+            - { name: HOME, value: /tmp }
+            # Keep in step with the Coder server tag in charts/openflows/values.yaml.
+            - { name: PROVISIONER_IMAGE, value: "ghcr.io/coder/coder:v2.37.1" }
+            - name: CODER_SESSION_TOKEN
+              valueFrom: { secretKeyRef: { name: openflows-bootstrap, key: coderSessionToken } }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts }
+            - { name: templates, mountPath: /templates }
+            - { name: tmp, mountPath: /tmp }
           resources:
-            requests: { cpu: 100m, memory: 256Mi }
-            limits: { memory: 1Gi }
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 128Mi }
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
+      volumes:
+        - { name: scripts, configMap: { name: openflows-provisioner-reconciler, items: [{ key: reconcile.sh, path: reconcile.sh }] } }
+        - { name: templates, configMap: { name: openflows-provisioner-reconciler, items: [{ key: deployment.yaml, path: deployment.yaml }] } }
+        - { name: tmp, emptyDir: {} }

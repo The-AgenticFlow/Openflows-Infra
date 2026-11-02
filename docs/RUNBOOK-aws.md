@@ -362,6 +362,7 @@ and again whenever one changes:
 | `githubClientSecret` | Client secret of the OpenFlows GitHub App | Coder (`openflows`) |
 | `argocdGithubClientSecret` | Client secret of the `OpenFlows Argo CD <env>` GitHub App | Argo CD sign-in (`argocd-github`) |
 | `coderSessionToken` | See "Bootstrapping OpenFlows workspaces" | `openflows-bootstrap` |
+| `provisionerKey` | The provisioner key `openflows-provisioner-<Coder organization id>`, created with `POST /api/v2/organizations/<id>/provisionerkeys` using the operator token | The test organization's provisioner (`openflows-provisioner`) |
 
 Set one key at a time. The command prompts without echoing, so the value stays
 out of shell history and logs, and keeps the secret's other keys:

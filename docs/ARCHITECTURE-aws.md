@@ -110,6 +110,7 @@ flowchart LR
 | OpenFlows Manager image | `develop-ce95142`, pinned by digest | [`gitops/staging/apps/openflows-manager.yaml`](../gitops/staging/apps/openflows-manager.yaml) | Published by the `Docker Publish Manager` workflow in the `openflows` repository; deploy by digest, bump tag and digest together |
 | Coder version the Manager expects | `v2.37.1` (the Manager's own default is `v2.37.3`) | `OPENFLOWS_CODER_VERSION_BASELINE` in the same file | Must match the Coder that runs; raise both when Coder is upgraded |
 | OpenFlows chart | `0.1.4` (Coder `v2.37.1`, Postgres `16-alpine`, Redis `7-alpine`) | [`charts/openflows/Chart.yaml`](../charts/openflows/Chart.yaml), [`charts/openflows/values.yaml`](../charts/openflows/values.yaml) | Staging values in [`gitops/staging/apps/openflows.yaml`](../gitops/staging/apps/openflows.yaml) |
+| Coder provisioner for the test organization | Coder image `v2.37.1` | [`gitops/staging/openflows-provisioner/provisioner.yaml`](../gitops/staging/openflows-provisioner/provisioner.yaml) | Same tag as the Coder server in [`charts/openflows/values.yaml`](../charts/openflows/values.yaml); bump both together |
 | AWS Load Balancer Controller IAM policy | `v3.6.1`, without Shield and WAF writes | [`terraform/modules/eks/policies/aws-load-balancer-controller.json`](../terraform/modules/eks/policies/aws-load-balancer-controller.json) | Must match the controller chart version Argo CD installs; re-apply the removal of `shield:*Protection` and `wafv2`/`waf-regional` `*WebACL` writes when bumping |
 
 ## Components
@@ -374,7 +375,7 @@ Pod Identity role. No secret value is in Git, Helm values or Terraform state.
 | Secrets Manager secret | Keys | Set by | Becomes Kubernetes Secret |
 |---|---|---|---|
 | `openflows/<env>/generated` | `postgresPassword`, `chatHookSecret` | Terraform, write-only (never in state) | `openflows-postgres`, `openflows-chat-hook` |
-| `openflows/<env>/provided` | `githubClientSecret`, `coderSessionToken`, `argocdGithubClientSecret` | A person ("Setting the provided secrets" in the runbook) | `openflows`, `openflows-bootstrap`, `argocd-github` (in `argocd`) |
+| `openflows/<env>/provided` | `githubClientSecret`, `coderSessionToken`, `argocdGithubClientSecret`, `provisionerKey` | A person ("Setting the provided secrets" in the runbook) | `openflows`, `openflows-bootstrap`, `argocd-github` (in `argocd`), `openflows-provisioner-key` |
 | `openflows/<env>/manager-db` | `password` | Terraform, write-only (never in state) | `openflows-manager` (with the database URL built from it) |
 | `openflows/<env>/manager/*` | `github-client-secret`, `github-private-key`, `github-webhook-secret`, `coder-operator-token` by a person; `crypto-master-key`, `coder-hook-secret`, `coder-oauth-client-secret` by the Manager's `setup` | The Manager's own role reads them at runtime ("Deploying the Manager" in the OpenFlows runbook) | none: the Manager reads them from AWS, not through External Secrets |
 
@@ -449,7 +450,7 @@ own bucket admits only the platform admin role and break-glass.
 | [`terraform/bootstrap/`](../terraform/bootstrap/) | State buckets, KMS keys, permissions boundary, GitHub OIDC and IAM roles |
 | [`terraform/modules/network/`](../terraform/modules/network/) | VPC, subnets, NAT, flow logs |
 | [`terraform/modules/dns/`](../terraform/modules/dns/) | Hosted zone and certificate |
-| [`gitops/staging/`](../gitops/staging/) | Argo CD Applications for staging: Load Balancer Controller, External Secrets, OpenFlows |
+| [`gitops/staging/`](../gitops/staging/) | Argo CD Applications for staging: Load Balancer Controller, External Secrets, OpenFlows, the test organization's provisioner |
 | [`gitops/argocd/`](../gitops/argocd/) | Argo CD Helm values |
 | [`gitops/staging/openflows-secrets/`](../gitops/staging/openflows-secrets/) | Secret store and ExternalSecrets for OpenFlows |
 | [`terraform/modules/app-secrets/`](../terraform/modules/app-secrets/) | Secrets Manager secrets, generated values write-only |

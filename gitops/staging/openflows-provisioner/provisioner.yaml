@@ -38,7 +38,9 @@ spec:
         - name: provisioner
           # Keep in step with the Coder server tag in charts/openflows/values.yaml.
           image: ghcr.io/coder/coder:v2.37.1
-          args: ["provisioner", "start", "--name", "app-test-org"]
+          # The image entrypoint already runs the server, so name the binary and the subcommand.
+          command: ["/opt/coder", "provisioner", "start"]
+          args: ["--name", "app-test-org"]
           env:
             - name: CODER_URL
               value: http://openflows-coder:7080

@@ -24,9 +24,9 @@ spec:
         config:
           AWS_REGION: eu-west-1
           OPENFLOWS_AWS_SECRETS_PREFIX: openflows/staging/manager
-          OPENFLOWS_GITHUB_CLIENT_ID: Iv23liEqS0pUwTcGdbh8
-          OPENFLOWS_GITHUB_APP_ID: "5538936"
-          OPENFLOWS_GITHUB_APP_SLUG: openflows-manager-staging
+          OPENFLOWS_GITHUB_CLIENT_ID: Iv23liSR6TsW7SxvgRLH
+          OPENFLOWS_GITHUB_APP_ID: "5486038"
+          OPENFLOWS_GITHUB_APP_SLUG: openflows-apps
           OPENFLOWS_GITHUB_CLIENT_SECRET_REF: github-client-secret
           OPENFLOWS_GITHUB_PRIVATE_KEY_REF: github-private-key
           OPENFLOWS_GITHUB_WEBHOOK_SECRET_REF: github-webhook-secret

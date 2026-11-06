@@ -334,7 +334,9 @@ flowchart TD
   group scales to zero on weekday evenings and weekends, a `t4g.micro` NAT
   instance replaces the NAT gateway, and ALBs span two AZs instead of three.
   Together these cut the staging run rate from about $245 to about $163 a month
-  (eu-west-1 list prices, 2026-10). EventBridge Scheduler changes the node group
+  (eu-west-1 list prices, 2026-10). The observed run rate on 2026-11-06 is about
+  $175 of usage, or $208 with tax, as shown in
+  [`docs/COST-aws-2026-11-06.md`](COST-aws-2026-11-06.md). EventBridge Scheduler changes the node group
   through the EKS API rather than scheduled actions on its Auto Scaling group,
   because EKS leaves that group untagged and the boundary would block deleting
   them. Production keeps NAT gateways, three AZs and always-on nodes.

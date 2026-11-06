@@ -543,6 +543,7 @@ The buckets have `prevent_destroy`, so Terraform refuses to delete them.
   because EKS fixes that name.
 - EKS control plane audit and authenticator logs are in `/aws/eks/openflows-<env>/cluster`.
 - No alerts are defined on the foundation yet.
+- Cost: the dated snapshot in [`docs/COST-aws-2026-11-06.md`](COST-aws-2026-11-06.md) holds the baseline and the console and CLI steps to repeat it. Re-run them monthly and compare with its run rate. No budget alarm is defined yet.
 - The nightly `Terraform` workflow run plans both environments and fails on
   drift: a red nightly run means AWS no longer matches `main`. Read its plan
   summary, then either revert the manual change or bring it into Terraform.
